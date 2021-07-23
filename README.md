@@ -66,11 +66,11 @@ I downloaded the zip files from the links and used the Arduino IDE librariess ma
 4. Edit this project file from Arduino IDE ```main/configuration.h``` under the **Configuration** section and select your correct board revision, either T_BEAM_V07 or T_BEAM_V10 (see [T-BEAM Board Versions](#t-beam-board-versions) to determine which board revision you have).
 
 5. Within your project edit ```main/credentials.h``` to add the device OTAA keys, ```Device EUI, App EUI and App Key```. These can be found within the device configuration within the Helium console. Be sure to pay special attention to the required format when adding these credentials.
-*Change to the following
+* Change to the following
 *  // Only one of these settings must be defined
 *  //#define USE_ABP
 *  #define USE_OTAA
-*Then under * #idef USE_OTAA
+* Then under * #idef USE_OTAA
 *   Copy over the APP EUI, DEV EUI, APP KEY that you copy from the Helium console 
 
 6. Within the Helium Console, add a Mapper or Cargo integration.
