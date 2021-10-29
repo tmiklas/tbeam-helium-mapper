@@ -38,30 +38,13 @@ NOTE: There are now 2 versions of the TTGO T-BEAM, the first version (Rev0) and 
 
 ### Setup
 
-1. Follow the directions at [espressif/arduino-esp32](https://github.com/espressif/arduino-esp32) to install the board to the Arduino IDE and use board 'T-Beam'.  
-In summary, within the Arduino IDE open Boards Manager from Tools > Board menu and search for and install the "esp32" platform (and don't forget to select your ESP32 board from Tools > Board menu after installation).
+1. Install VisualStudio Code (https://code.visualstudio.com/)
 
-2. Install the following Arduino IDE libraries: 
-***You find Libraries under the Arduino folder*** 
-In my case documents\arduino\libraries
-To run the below commnads you will need to download and install Git from https://git-scm.com/downloads
-If you use the "git clone" command below and using the Git Bash App then ensure you are in the librarires folder by using cd documents/arduino/libraries
-I downloaded the zip files from the links and used the Arduino IDE librariess manager to install the library
+2. Add the PlattformIO extension within VS Code (https://platformio.org/install/ide?install=vscode)
 
-   1. [mcci-catena/arduino-lmic](https://github.com/mcci-catena/arduino-lmic) (for Rev0 and Rev1)  
-    Executing ```git clone https://github.com/mcci-catena/arduino-lmic.git``` within the Arduino project's libraries directory should install the proper and latest version of the library.
-    
-   2. [ThingPulse/esp8266-oled-ssd1306](https://github.com/ThingPulse/esp8266-oled-ssd1306) (for Rev0 and Rev1)  
-    Executing ```git clone https://github.com/ThingPulse/esp8266-oled-ssd1306.git``` within the Arduino project's libraries directory should install proper and the latest version of the library.
-    
-   3. [mikalhart/TinyGPSPlus](https://github.com/mikalhart/TinyGPSPlus) (for Rev0 and Rev1)  
-    Executing ```git clone https://github.com/mikalhart/TinyGPSPlus.git``` within the Arduino project's libraries directory should install the proper and latest version of the library.
-   4. [lewisxhe/AXP202X_Library](https://github.com/lewisxhe/AXP202X_Library) (or Rev0 and Rev1)  
-    Executing ```git clone https://github.com/lewisxhe/AXP202X_Library.git``` within the Arduino project's libraries directory should install the proper and latest version of the library.
+3. Check Device Manager if a serialdevice appear on conntecting the T-Beam. If nothing appears a driver for the USB to serial Adpater need to be installed.(https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers)
 
-
-
-3. Edit from the libraries folder on your computer ```arduino-lmic-master/project_config/lmic_project_config.h``` and uncomment the proper frequency for your region.
+3. Check and edit platformio.ini to use the right bandplan for your region.
 
 4. Edit this project file from Arduino IDE ```main/configuration.h``` under the **Configuration** section and select your correct board revision, either T_BEAM_V07 or T_BEAM_V10 (see [T-BEAM Board Versions](#t-beam-board-versions) to determine which board revision you have).
 
@@ -71,7 +54,7 @@ I downloaded the zip files from the links and used the Arduino IDE librariess ma
 *     //#define USE_ABP
 *     #define USE_OTAA
 * Then under * #idef USE_OTAA
-*     Copy over the APP EUI, DEV EUI, APP KEY that you copy from the Helium console 
+*     Copy over the APP EUI (LSB), DEV EUI (LSB), APP KEY (MSB) that you copy from the Helium console 
 
 6. Within the Helium Console, add a Mapper or Cargo integration.
 - step by step details for setting up a Mapper integration can be found [here](https://docs.helium.com/use-the-network/coverage-mapping/mappers-quickstart/#mappers-quickstart).
@@ -96,7 +79,7 @@ function Decoder(bytes, port) {
 
     decoded.hdop = bytes[8] / 10.0;
     decoded.sats = bytes[9];
-
+    decoded.accuracy = bytes[8] / 10.0;
     return decoded;
 }
 ```
