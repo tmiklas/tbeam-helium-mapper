@@ -14,6 +14,7 @@ function Decoder(bytes, port) {
     else decoded.altitude = altValue;
 
     decoded.hdop = bytes[8] / 10.0;
+    decoded.accuracy = bytes[8] / 10.0;
     decoded.sats = bytes[9];
 
     return decoded;
