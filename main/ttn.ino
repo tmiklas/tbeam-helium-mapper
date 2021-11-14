@@ -126,7 +126,7 @@ void initDevEUI() {
     if(needInit)
         gen_lora_deveui(DEVEUI);
 
-    Serial.print("DevEUI: ");
+    Serial.print("\n\nDevEUI: ");
     for(int i = 0; i < sizeof(DEVEUI); i++) {
         if (i != 0)
                 Serial.print("-");

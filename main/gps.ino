@@ -39,6 +39,10 @@ float gps_latitude() {
     return _gps.location.lat();
 }
 
+float gps_distanceBetween(float last_lat, float last_lon, float lat, float lon) {
+    return _gps.distanceBetween(last_lat, last_lon, lat, lon);
+}
+
 float gps_longitude() {
     return _gps.location.lng();
 }

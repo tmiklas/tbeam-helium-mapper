@@ -33,7 +33,7 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1"
+#define APP_VERSION             "1.0-tm"
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -74,6 +74,13 @@ void ttn_register(void (*callback)(uint8_t message));
 
 // If not defined, we will wait for lock forever
 #define GPS_WAIT_FOR_LOCK       (60 * 1000)     // Wait after every boot for GPS lock (may need longer than 5s because we turned the gps off during deep sleep)
+
+// -----------------------------------------------------------------------------
+// LoRa send criteria
+// -----------------------------------------------------------------------------
+#define MIN_DIST                 50.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
+#define STATIONARY_TX_INTERVAL   60        // If stationary the LoRa frame will be sent once every N cycles... with 30sec cycle, interval of 60 means to transmit once every 30min
+
 
 // -----------------------------------------------------------------------------
 // DEBUG
