@@ -21,6 +21,43 @@ Same as Fizzy I have not done any of the coding. My only idea with this fork is 
     - Corrected some file edit paths
 
 -------------
+
+Further modifications added by [tmiklas](https://github.com/tmiklas/tbeam-helium-mapper):
+
+**2021-11-14** - Added some new features
+
+> Send Now - transmit on deman by short-pressing 2nd button
+
+Reacts to short-press of the central button and overrides any travel distance requirement (see 2 below).
+Intended for use when you are just skimming the hex you want to light up and don't want to or can't wait
+for the usual 30sec cycle.
+
+> Not moving, not transmitting (configurable)
+
+Normally mapper sends location every 30sec, but if you are stationary, there location doesn't change (except possible GPS drift), so ongoing transmissions makes little if any sense, only burns DC. To avoid that, mapper will no longer report position every cycle unless it is actually moving or once every N cycles if stationary to say it's still alive and working.
+
+This is controlled by 2 variables in `configuration.h` file, `MIN_DIST` and `STATIONARY_TX_INTERVAL`.
+
+Example:
+
+```
+// -----------------------------------------------------------------------------
+// LoRa send criteria
+// -----------------------------------------------------------------------------
+#define MIN_DIST                 50.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
+#define STATIONARY_TX_INTERVAL   60        // If stationary the LoRa frame will be sent once every N cycles... with 30sec cycle, interval of 60 means to transmit once every 30min
+
+```
+
+With the default cycle time of 30sec means that mapper will transmit location if:
+
+- it has moved at least 50m from previously transmitted coordinates,
+- when it was stationary for 60 cycles (or 30 minutes),
+- ... or user short-pressed 2nd button, which ignores distance/time requirements
+
+
+
+-------------
 Ref: https://github.com/helium/longfi-arduino/tree/master/TTGO-TBeam-Tracker
 
 This code was originally developed for use on The Things Network (TTN) it has been editied/repurposed for use with the Helium Network.
