@@ -31,6 +31,7 @@
 
 */
 
+#include <Arduino.h>
 #include "configuration.h"
 #include "rom/rtc.h"
 #include <TinyGPS++.h>
@@ -45,7 +46,11 @@ float         last_send_lat           = 0;
 float         last_send_lon           = 0;
 float         min_dist_moved          = MIN_DIST;
 float         dist_moved              = UINT32_MAX;
+unsigned int  adjusted_SEND_INTERVAL  = SEND_INTERVAL;
 //
+
+// do we want to auto-scale transmit window size?
+bool autoScaleTX = false;
 
 AXP20X_Class axp;
 bool pmu_irq = false;
@@ -118,6 +123,22 @@ bool trySend() {
       if (movementTrackingActive) {
         snprintf(buffer, sizeof(buffer), "Movement: %4.1fm\n", dist_moved);
         screen_print(buffer);
+      }
+
+      // TX window auto-scaling
+      // desired ping distance is 200m
+      if (autoScaleTX && !justSendNow) {
+        float newWindow = DISTANCE_TARGET / (dist_moved / adjusted_SEND_INTERVAL);  // seconds
+        if (newWindow > SEND_INTERVAL) { // both are in millis!
+          // we're too slow... default back to old mode with ping every SEND_INTERVAL
+          newWindow = SEND_INTERVAL;
+        } else if (newWindow < 2000) {
+          // this is 100m/s movement or 360kph or 220mph :-o
+          newWindow = 2000;
+        }
+        snprintf(buffer, sizeof(buffer), "TX window: %4.1fsec\n", newWindow / 1000);
+        screen_print(buffer);
+        adjusted_SEND_INTERVAL = newWindow; // millis
       }
 
       // set back to normal mode
@@ -472,27 +493,50 @@ void loop() {
   static bool wasPressed = false;
   static uint32_t minPressMs; // what tick should we call this press long enough
   if (!digitalRead(BUTTON_PIN)) {
+
     if (!wasPressed) { // just started a new press
-      Serial.println("pressing");
+      // Serial.println("pressing");
       wasPressed = true;
-      minPressMs = millis() + 3000;
+      minPressMs = millis();
     }
+
   } else if (wasPressed) {
+
     // we just did a release
     wasPressed = false;
-    if (millis() > minPressMs) {
+    if (millis() > minPressMs + 1000) {
       // held long enough
-#ifndef PREFS_DISCARD
-      screen_print("Discarding prefs disabled\n");
-#endif
-#ifdef PREFS_DISCARD
-      screen_print("Discarding prefs!\n");
-      ttn_erase_prefs();
-      delay(5000); // Give some time to read the screen
-      ESP.restart();
-#endif
+      Serial.println("Long press!");
+      if (autoScaleTX) {
+        // turn off auto scaling to static trigger
+        autoScaleTX = false;
+        adjusted_SEND_INTERVAL = SEND_INTERVAL;
+        char buffer[40];
+        snprintf(buffer, sizeof(buffer), "TX scaling OFF\n");
+        screen_print(buffer);        
+        // screen_print("TX Scaling OFF");
+      } else {
+        // enable auto-scaling
+        autoScaleTX = true;
+        char buffer[40];
+        snprintf(buffer, sizeof(buffer), "TX scaling ON\n");
+        screen_print(buffer);        
+        // screen_print("TX Scaling ON");
+      }
+// #ifndef PREFS_DISCARD
+//       screen_print("Discarding prefs disabled\n");
+// #endif
+// #ifdef PREFS_DISCARD
+//       screen_print("Discarding prefs!\n");
+//       ttn_erase_prefs();
+//       delay(5000); // Give some time to read the screen
+//       ESP.restart();
+// #endif
+
     } else {
+
       // short press, send beacon
+      Serial.println("Short press :-P");
       justSendNow = true;
       trySend();
     }
@@ -501,7 +545,7 @@ void loop() {
   // Send every SEND_INTERVAL millis
   static uint32_t last = 0;
   static bool first = true;
-  if (0 == last || millis() - last > SEND_INTERVAL) {
+  if (0 == last || millis() - last > adjusted_SEND_INTERVAL) {
     if (trySend()) {
       last = millis();
       first = false;

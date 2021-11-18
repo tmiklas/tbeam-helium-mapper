@@ -33,7 +33,7 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1.0-tm"
+#define APP_VERSION             "1.1-tm"
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -80,6 +80,7 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 #define MIN_DIST                 50.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
 #define STATIONARY_TX_INTERVAL   60        // If stationary the LoRa frame will be sent once every N cycles... with 30sec cycle, interval of 60 means to transmit once every 30min
+#define DISTANCE_TARGET          200.0     // MUST be decimal number; distance target in meters
 
 
 // -----------------------------------------------------------------------------
