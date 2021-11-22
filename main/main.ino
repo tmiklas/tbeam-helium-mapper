@@ -8,10 +8,11 @@
   - Changed GPS metric output text "Error", to "Accuracy/HDOP".
 */
 /*
-  Modifications by Max-Plastic
+  Modifications by Max-Plastix
   - DevEUI is auto-generated per-device
   - Print all three ID values to console at boot, in a format that pastes into Helium Console. 
-  - Change Payload to 2 and match CubeCell Mapper format, including battery voltage.
+  - Change Payload to #2 and match CubeCell Mapper format, including battery voltage. (Shared decoder with CubeCell)
+*/
 /*
 
   Main module
