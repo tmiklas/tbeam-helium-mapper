@@ -6,8 +6,12 @@
   - Changed Text output to reflect Helium, and not TTL (Code referances ttn, just to prevent brakes in this awesome code)
   - Changed credentials file to use OTAA by default.
   - Changed GPS metric output text "Error", to "Accuracy/HDOP".
-
 */
+/*
+  Modifications by Max-Plastic
+  - DevEUI is auto-generated per-device
+  - Print all three ID values to console at boot, in a format that pastes into Helium Console. 
+  - Change Payload to 2 and match CubeCell Mapper format, including battery voltage.
 /*
 
   Main module
@@ -67,6 +71,8 @@ static uint8_t txBuffer[10];
 #elif defined(PAYLOAD_USE_CAYENNE)
 // CAYENNE DF
 static uint8_t txBuffer[11] = {0x03, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+#elif defined (PAYLOAD_USE_MAPPER)
+  static uint8_t txBuffer[11];
 #endif
 
 // deep sleep support

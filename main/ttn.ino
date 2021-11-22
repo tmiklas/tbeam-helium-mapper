@@ -117,7 +117,7 @@ static void printHex2(unsigned v) {
 }
 
 #ifdef USE_OTAA
-// generate DevEUI from macaddr if needed
+// generate DevEUI from macaddr if it's all zero
 void initDevEUI() {
     bool needInit = true;
     for(int i = 0; i < sizeof(DEVEUI); i++)
@@ -125,14 +125,6 @@ void initDevEUI() {
 
     if(needInit)
         gen_lora_deveui(DEVEUI);
-
-    Serial.print("\n\nDevEUI: ");
-    for(int i = 0; i < sizeof(DEVEUI); i++) {
-        if (i != 0)
-                Serial.print("-");
-        printHex2(DEVEUI[i]);
-    }
-    Serial.println();
 }
 #endif
 
@@ -243,6 +235,23 @@ bool ttn_setup() {
     #if defined(USE_OTAA)
         initDevEUI();
     #endif
+
+    // Print out DevEUI, AppEUI, APPKEY suitable for Helium Console
+    Serial.println();
+    Serial.print("DevEUI (msb): ");
+    for (int i = 0; i < sizeof(DEVEUI); i++)
+        printHex2(DEVEUI[sizeof(DEVEUI) - 1 - i]);
+    Serial.println();
+
+    Serial.print("APPEUI (msb): ");
+    for (int i = 0; i < sizeof(APPEUI); i++)
+        printHex2(APPEUI[sizeof(APPEUI) - 1 - i]);
+    Serial.println();
+
+    Serial.print("APPKEY (msb): ");
+    for (int i = 0; i < sizeof(APPKEY); i++)
+        printHex2(APPKEY[i]);
+    Serial.println();
 
     // SPI interface
     SPI.begin(SCK_GPIO, MISO_GPIO, MOSI_GPIO, NSS_GPIO);

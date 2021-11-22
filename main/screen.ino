@@ -42,9 +42,8 @@ void _screen_header() {
     display->drawString(0, 2, buffer);
 
     // Datetime (if the axp192 PMIC is present, alternate between powerstats and time)
-    if(axp192_found && millis()%8000 < 3000){
+    if(axp192_found && millis()%5000 < 4000){
         snprintf(buffer, sizeof(buffer), "%.1fV %.0fmA", axp.getBattVoltage()/1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
-
     } else {
         gps_time(buffer, sizeof(buffer));
     }
@@ -98,7 +97,7 @@ void screen_print(const char * text, uint8_t x, uint8_t y) {
 }
 
 void screen_print(const char * text) {
-    Serial.printf("Screen: %s\n", text);
+    Serial.printf("Screen: %s", text);
     if(!display) return;
 
     display->print(text);
