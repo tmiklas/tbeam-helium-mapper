@@ -32,8 +32,8 @@ void ttn_register(void (*callback)(uint8_t message));
 // Version
 // -----------------------------------------------------------------------------
 
-#define APP_NAME                "Helium TTGO Distance"
-#define APP_VERSION             "1.1-tm-mp"
+#define APP_NAME                "Helium TTGO"
+#define APP_VERSION             "1.2-tm-mp"
 
 // -----------------------------------------------------------------------------
 // Configuration
