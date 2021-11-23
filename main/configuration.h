@@ -33,7 +33,7 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1.2-tm-mp"
+#define APP_VERSION             "1.22-tm-mp"
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -41,7 +41,7 @@ void ttn_register(void (*callback)(uint8_t message));
 
 // Select which T-Beam board is being used. Only uncomment one.
 //#define T_BEAM_V07  // AKA Rev0 (first board released)
- #define T_BEAM_V10  // AKA Rev1 (second board released)
+#define T_BEAM_V10  // AKA Rev1 (second board released)
 
 // Select the payload format. Change on TTN as well. Only uncomment one.
 // #define PAYLOAD_USE_FULL
@@ -66,7 +66,7 @@ void ttn_register(void (*callback)(uint8_t message));
 #define SLEEP_BETWEEN_MESSAGES  false           // Do sleep between messages
 #define SEND_INTERVAL           (20 * 1000)     // Sleep for these many millis
 #define MESSAGE_TO_SLEEP_DELAY  5000            // Time after message before going to sleep
-#define LOGO_DELAY              5000            // Time to show logo on first boot
+#define LOGO_DELAY              3000            // Time to show logo on first boot
 #define LORAWAN_PORT            2               // Port the messages will be sent to
 #define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message every these many messages (0 means never)
 #define LORAWAN_SF              DR_SF7          // Spreading factor (recommended DR_SF7 for ttn network map purposes, DR_SF10 works for slow moving trackers)
@@ -79,9 +79,9 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 // LoRa send criteria
 // -----------------------------------------------------------------------------
-#define MIN_DIST                 50.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
-#define STATIONARY_TX_INTERVAL   60        // If stationary the LoRa frame will be sent once every N cycles... with 30sec cycle, interval of 60 means to transmit once every 30min
-#define DISTANCE_TARGET          200.0     // MUST be decimal number; distance target in meters
+#define MIN_DIST                 35.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
+#define STATIONARY_TX_INTERVAL   30        // If stationary the LoRa frame will be sent once every N cycles... with 20sec cycle, interval of 30 means to transmit once every 10min
+#define DISTANCE_TARGET          100.0     // MUST be decimal number; distance target in meters
 
 
 // -----------------------------------------------------------------------------

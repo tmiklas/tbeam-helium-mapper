@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "OLEDDisplay.h"
 #include "images.h"
 #include "fonts.h"
+#include "credentials.h"
 
 #define SCREEN_HEADER_HEIGHT    14
 
@@ -36,18 +37,26 @@ void _screen_header() {
 
     char buffer[20];
 
-    // Message count
-    snprintf(buffer, sizeof(buffer), "#%03d", ttn_get_count() % 1000);
-    display->setTextAlignment(TEXT_ALIGN_LEFT);
-    display->drawString(0, 2, buffer);
+    // Cycle display every 2 seconds
+    if (axp192_found && millis() % 4000 < 2000)
+    {
+        // 2 bytes of Device EUI with Voltage and Current
+        snprintf(buffer, sizeof(buffer), "#%04X", ((DEVEUI[7] << 8) | DEVEUI[6]));
+        display->setTextAlignment(TEXT_ALIGN_LEFT);
+        display->drawString(0, 2, buffer);
 
-    // Datetime (if the axp192 PMIC is present, alternate between powerstats and time)
-    if(axp192_found && millis()%4000 < 2000){
-        snprintf(buffer, sizeof(buffer), "%.1fV %.0fmA", axp.getBattVoltage()/1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
-    } else {
+        snprintf(buffer, sizeof(buffer), "%.1fV %.0fmA", axp.getBattVoltage() / 1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
+    }
+    else
+    {
+        // Message count and time
+        snprintf(buffer, sizeof(buffer), "%4d", ttn_get_count() % 10000);
+        display->setTextAlignment(TEXT_ALIGN_LEFT);
+        display->drawString(0, 2, buffer);
+
         gps_time(buffer, sizeof(buffer));
     }
-    
+
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->drawString(display->getWidth()/2, 2, buffer);
 

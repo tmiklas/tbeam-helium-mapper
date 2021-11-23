@@ -70,7 +70,7 @@ Verison: `1.1-tm`
 
 Most mappers usually operate in **time target** mode, where they send data to network every set interval (i.e. `SEND_INTERVAL`). There is however a different use case for fast moving mappers - like in a car at motorway speeds...
 
-This feature allows you to switch mapping mode from time target to distace target and back. You can configure your desierd distance target in `configuration.h` and turn ON/OFF by pressing the `USR` button for over 1sec:
+This feature allows you to switch mapping mode from time target to distace target and back. You can configure your desired distance target in `configuration.h` and turn ON/OFF by pressing the `USR` button for over 1sec:
 
 ```
 #define DISTANCE_TARGET          200.0     // MUST be decimal number; distance target in meters

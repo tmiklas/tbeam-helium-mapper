@@ -143,7 +143,7 @@ void onEvent(ev_t event) {
             LMIC_setLinkCheckMode(0); // Link check problematic if not using ADR. Must be set after join
         }
 
-        Serial.println(F("EV_JOINED"));
+        Serial.println(F("! EV_JOINED as:"));
 
         u4_t netid = 0;
         devaddr_t devaddr = 0;
@@ -179,9 +179,9 @@ void onEvent(ev_t event) {
         }
         break; }
     case EV_TXCOMPLETE:
-        Serial.println(F("EV_TXCOMPLETE (inc. RX win. wait)"));
+        Serial.println(F("! EV_TXCOMPLETE"));
         if (LMIC.txrxFlags & TXRX_ACK) {
-            Serial.println(F("Received ack"));
+            Serial.println(F("! Received ACK"));
             _ttn_callback(EV_ACK);
         }
         if (LMIC.dataLen) {

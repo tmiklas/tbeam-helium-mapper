@@ -193,7 +193,7 @@ bool trySend() {
       }
       // update counter
       stationaryTickCounter++;
-      Serial.println("** STATIONARY");
+      Serial.println("(stationary)");
       return false;
     }
 
@@ -268,34 +268,40 @@ void sleep() {
 
 
 void callback(uint8_t message) {
-  bool ttn_joined = false;
-  if (EV_JOINED == message) {
-    ttn_joined = true;
+  #if 0
+  {
+    char buffer[20];
+  
+  snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
+  screen_print(buffer);
   }
-  if (EV_JOINING == message) {
-    if (ttn_joined) {
-      screen_print("Helium joining...\n");
-    } else {
-      screen_print("Joined Helium!\n");
-    }
-  }
-  if (EV_JOIN_FAILED == message) screen_print("Helium join failed\n");
-  if (EV_REJOIN_FAILED == message) screen_print("Helium rejoin failed\n");
-  if (EV_RESET == message) screen_print("Reset Helium connection\n");
-  if (EV_LINK_DEAD == message) screen_print("Helium link dead\n");
-  if (EV_ACK == message) screen_print("ACK received\n");
-  if (EV_PENDING == message) screen_print("Message discarded\n");
-  if (EV_QUEUED == message) screen_print("Message queued\n");
+  #endif
+  if (EV_JOIN_TXCOMPLETE == message) Serial.println("# JOIN_TXCOMPLETE");
+  if (EV_TXCOMPLETE == message) Serial.println("# TXCOMPLETE");
+  if (EV_RXSTART == message) Serial.println("# RXSTART");
+  if (EV_TXCANCELED == message) Serial.println("# TXCANCELED");
+  if (EV_TXSTART == message) Serial.println("# TXSTART");
+  if (EV_JOINING == message) Serial.println("# JOINING");
+  if (EV_JOINED == message) Serial.println("# JOINED");
+  if (EV_JOIN_FAILED == message) Serial.println("# JOIN_FAILED");
+  if (EV_REJOIN_FAILED == message) Serial.println("# REJOIN_FAILED");
+  if (EV_RESET == message) Serial.println("# RESET");
+  if (EV_LINK_DEAD == message) Serial.println("# LINK_DEAD");
+  if (EV_ACK == message) Serial.println("# ACK");
+  if (EV_PENDING == message) Serial.println("# PENDING");
+  if (EV_QUEUED == message) Serial.println("# QUEUED");
 
+  if (EV_TXSTART == message) {
+    screen_print("Sending.. ");
+  }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
-    screen_print("Message sent\n");
+    screen_print("sent.\n");
     packetQueued = false;
     packetSent = true;
   }
 
   if (EV_RESPONSE == message) {
-
     screen_print("[Helium] Response: ");
 
     size_t len = ttn_response_len();
@@ -481,6 +487,7 @@ void setup() {
   }
   else {
     ttn_register(callback);
+    // ttn_erase_prefs();
     ttn_join();
     ttn_adr(LORAWAN_ADR);
   }
@@ -539,9 +546,7 @@ void loop() {
 //       delay(5000); // Give some time to read the screen
 //       ESP.restart();
 // #endif
-
     } else {
-
       // short press, send beacon
       Serial.println("Short press :-P");
       justSendNow = true;

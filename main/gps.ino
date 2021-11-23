@@ -136,6 +136,7 @@ void buildPacket(uint8_t txBuffer[11]) {
         txBuffer[5] = LongitudeBinary & 0xFF;
         txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
         txBuffer[7] = altitudeGps & 0xFF;
+
         txBuffer[8] = hdopGps & 0xFF;
         txBuffer[9] = sats & 0xFF;
     }
