@@ -63,9 +63,9 @@ void ttn_register(void (*callback)(uint8_t message));
 
 #define DEBUG_PORT              Serial          // Serial debug port
 #define SERIAL_BAUD             115200          // Serial debug baud rate
-#define SLEEP_BETWEEN_MESSAGES  false           // Do sleep between messages
+#define SLEEP_VOLTAGE           3.8             // Voltage threshold to sleep between messages.  0 for never.
 #define SEND_INTERVAL           (20 * 1000)     // Sleep for these many millis
-#define MESSAGE_TO_SLEEP_DELAY  5000            // Time after message before going to sleep
+#define MESSAGE_TO_SLEEP_DELAY  500             // Time after message before going to sleep
 #define LOGO_DELAY              3000            // Time to show logo on first boot
 #define LORAWAN_PORT            2               // Port the messages will be sent to
 #define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message every these many messages (0 means never)

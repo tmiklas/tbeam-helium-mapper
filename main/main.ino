@@ -239,43 +239,47 @@ void doDeepSleep(uint64_t msecToWake)
 
 
 void sleep() {
-#if SLEEP_BETWEEN_MESSAGES
+  float_t batt_volts = axp.getBattVoltage() / 1000.0;
+  float_t charge_ma = axp.getBattChargeCurrent();
+  float_t discharge_ma = axp.getBattDischargeCurrent();
+  static boolean screen_sleep = false;
 
-  // If the user has a screen, tell them we are about to sleep
-  if (ssd1306_found) {
-    // Show the going to sleep message on the screen
-    char buffer[20];
-    snprintf(buffer, sizeof(buffer), "Sleeping in %3.1fs\n", (MESSAGE_TO_SLEEP_DELAY / 1000.0));
-    screen_print(buffer);
-
-    // Wait for MESSAGE_TO_SLEEP_DELAY millis to sleep
-    delay(MESSAGE_TO_SLEEP_DELAY);
-
-    // Turn off screen
-    screen_off();
+  if (1)
+  {
+    char buffer[30];
+    snprintf(buffer, sizeof(buffer), "%.2fv %.1fmA\n", batt_volts, charge_ma - discharge_ma);
+    Serial.println(buffer);
   }
 
+  if ((batt_volts > SLEEP_VOLTAGE) || (charge_ma - discharge_ma > 1.0)) {
+    if (screen_sleep) {
+      screen_sleep = false;
+      screen_on();
+    }
+  } else {
+    if (!screen_sleep) {
+      screen_sleep = true;
+      screen_off();
+    }
+  }
+
+#if 0  
   // Set the user button to wake the board
   sleep_interrupt(BUTTON_PIN, LOW);
 
-  // We sleep for the interval between messages minus the current millis
-  // this way we distribute the messages evenly every SEND_INTERVAL millis
-  uint32_t sleep_for = (millis() < SEND_INTERVAL) ? SEND_INTERVAL - millis() : SEND_INTERVAL;
-  doDeepSleep(sleep_for);
-
+  doDeepSleep(SEND_INTERVAL);
 #endif
 }
 
 
 void callback(uint8_t message) {
-  #if 0
+#if 0
   {
     char buffer[20];
-  
-  snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
-  screen_print(buffer);
+    snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
+    screen_print(buffer);
   }
-  #endif
+#endif
   if (EV_JOIN_TXCOMPLETE == message) Serial.println("# JOIN_TXCOMPLETE");
   if (EV_TXCOMPLETE == message) Serial.println("# TXCOMPLETE");
   if (EV_RXSTART == message) Serial.println("# RXSTART");
@@ -454,16 +458,17 @@ void setup() {
   DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
 
   // Don't init display if we don't have one or we are waking headless due to a timer event
-  if (wakeCause == ESP_SLEEP_WAKEUP_TIMER)
+  if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
     ssd1306_found = false; // forget we even have the hardware
 
-  if (ssd1306_found) screen_setup();
+  if (ssd1306_found) {
+    screen_setup();
+  }
 
   // Init GPS
   gps_setup();
 
   // Show logo on first boot after removing battery
-
 #ifndef ALWAYS_SHOW_LOGO
   if (bootCount == 0) {
 #endif
