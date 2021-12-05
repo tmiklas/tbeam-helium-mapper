@@ -2,7 +2,7 @@
 ## TTGO T-Beam Tracker for the Helium LoRaWAN Network and Mapper integrations.
 by [Max-Plastix](https://github.com/Max-Plastix/tbeam-helium-mapper/)
 
-This build is a modification of work by many experts, with input from the Helium Discord `#mappers` community.  Thanks to @Kicko and @tmiklas especially, along with the work done on similar builds for the Heltec CubeCell mappers.
+This build is a modification of work by many experts, with input from the [Helium Discord](https://discord.gg/helium) `#mappers` community.  Thanks to @Kicko and @tmiklas especially, along with the work done on similar builds for the Heltec CubeCell mappers.
 
 The goal of this version is to have a TTGO T-Beam that's ideally suited to vehicle mapping and tracking, taking cues from the USB Power source and position movement for activity level.  It's intended to be highly active while the vehicle is in motion.  If you want to conserve DC or power, tune the default configuration to send less frequently.
 
