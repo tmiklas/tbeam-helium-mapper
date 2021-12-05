@@ -1,9 +1,56 @@
 <!-- ## TTGO T-Beam Tracker for The Things Network and/or The Helium Network  -->
-## TTGO T-Beam Tracker for use with a LoRaWan Network (Helium)
+## TTGO T-Beam Tracker for the Helium LoRaWAN Network and Mapper integrations.
+by [Max-Plastix](https://github.com/Max-Plastix/tbeam-helium-mapper/)
 
-Modifications added by [Max-Plastix](https://github.com/Max-Plastix/tbeam-helium-mapper/):
-  - The Payload Port and contents have been changed to match that in common use by CubeCell mappers: 
-Lat, Long, Altitude, Speed, Battery, Sats.  This common decoder function can now be used for both mappers:
+This build is a modification of work by many experts, with input from the Helium Discord `#mappers` community.  Thanks to @Kicko and @tmiklas especially, along with the work done on similar builds for the Heltec CubeCell mappers.
+
+The goal of this version is to have a TTGO T-Beam that's ideally suited to vehicle mapping and tracking, taking cues from the USB Power source and position movement for activity level.  It's intended to be highly active while the vehicle is in motion.  If you want to conserve DC or power, tune the default configuration to send less frequently.
+
+### Mandatory Configuration
+Before Buliding and Uploading, you will probably want to inspect or change some items in these three files:
+  - `configuration.h`
+  - `platformio.ini`
+  - `credentials.h`
+
+The comments and text below will guide you on what values to look out for.  By default, this builds is for the **US915** region.  Tune accordingly.
+
+### Goals of Operation
+When your car is started, and USB Power appears, the Mapper will power on, acquire GPS, and continue mapping.
+It re-uses the last network Join state for faster connection and fewer packets.  (Hold down the middle button to erase the last-known network state, in case this gets botched.)
+
+When running, the Mapper will send out a packet every time GPS indicates it has moved `MIN_DIST` meters.  This is the primary knob to turn for more/fewer packets.  A hex cell is about 340meters across, so the default 50.0 meter packet distance will send quite a few.  DC is incredibly cheap, but adjust to taste.
+
+This is the normal operation of the Mapper in motion.. every 50 meters, one ping reporting position, battery charging from USB to a steady 4.1+ volts.  If the speed of motion is fast, it may even result in back-to-back packet sends.
+
+When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat pin every `STATIONARY_TX_INTERVAL` seconds (default 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer timespan.
+
+After being stationary a long time (parked) with a decreasing battery voltage, we change to a slower pace of updates.  This happens after `REST_WAIT` seconds (default: 30 minutes).  In the Rest state, the Mapper transmits every `REST_TX_INTERVAL` seconds (default: 5 minutes).
+
+It stays in this REST state until motion resumes or USB power tops up the battery over `BATTERY_HI_VOLTAGE`.  If instead, the battery falls below `BATTERY_LOW_VOLTAGE`, the Mapper completely powers OFF.  It will power on and resume only when USB power appears.
+
+### Building
+The fantastic state of PlatformIO tools makes it easiest to build and load your TTGO from source code; no pre-built binary is necessary.
+
+By default, the DevEUI is generated automatically to be unique to each unit, but you may want to hardcode it in `credentials.h` instead.
+
+I tested only on a LilyGo TTGO T-Beam v1.1 on **US915**.  If you have an older v0.7 board or different region, adjust the configuration to match.
+
+### Operation
+On startup, the USB Serial port will print the DevEUI, AppID, and AppKey values, suitable for cut & paste entry into the Helium Console for your Device.
+
+The OLED screen is always on when operating (as it uses only 10mA), and displays alternating status in the top row:
+- `#ABC` is the last three hex digits of your DevEUI, so you can match it to the right device in Console.
+- `4.10v` is the battery voltage
+- `48mA` is the charge or discharge current to the battery.  The TTGO charges the battery cell at around 750mA from USB, when possible.
+- Satellite Count is displayed on the right at all times.
+- Packet Count and Time of Day (UTC) alternate on the display line every 2 seconds.
+
+The lower part of the OLED screen shows a scrolling display of five messages.  Most often, it shows the Time and Distance between packet sends.
+`60s 5m Tx.. sent.`
+
+## Payload
+The Payload Port and byte content have been changed to match that in common use by CubeCell mappers: 
+Lat, Long, Altitude, Speed, Battery, and Sats.  This common decoder function can now be used for both TTGO and CubeCell mappers:
 
 ```
 // From https://github.com/hkicko/CubeCell-GPS-Helium-Mapper
@@ -37,14 +84,7 @@ function Decoder(bytes, port) {
   return decoded;  
 }
 ```
-
-  - The DevEUI is auto-generated by the device, and printed in the debug output to import into Helium's Console.
-  - The operation of the mapper is now more oriented for vehicle tracking.  Map points are distance-based
-  - The unit will power off after the battery goes below a minimum voltage without being attached to a USB charger
-  - Lat/Long is no longer shown on the OLED display.  The top line alternates between the last 3 digits of DevEUI & Voltage & Current, and Send count & Time.
-  - When stationary, the mapper will send updates at a slow rate, and then an ever slower rate after a longer duration
-  - See the descriptions in configuration.h to set the distance and timing parameters.
-
+The remainder of this README is from earlier authors that developed this codebase:
 
 -------------
 This well thought out README, original code, and the prior versions of code all have great people behind this and I have only sought to copy and revise it further for my own personal amusement and esthetics. 
