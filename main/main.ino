@@ -510,7 +510,7 @@ void loop() {
 
   // Short press on power button (near USB) also causes PMIC IRQ
   if (axp192_found && pmu_irq) {
-    char *irq_name = "Unrecognized";
+    const char *irq_name = "Unrecognized";
     pmu_irq = false;
     axp.readIRQ();
     if (axp.isChargingIRQ()) {
@@ -531,7 +531,7 @@ void loop() {
   }
 
   // if user presses button for more than 3 secs, discard our network prefs and reboot (FIXME, use a debounce lib instead of this boilerplate)
-  static uint32_t pressTime; // what tick should we call this press long enough
+  static uint32_t pressTime = 0; // what tick should we call this press long enough
   if (!digitalRead(MIDDLE_BUTTON_PIN)) {
     // Pressure is on
     if (!pressTime) { // just started a new press
