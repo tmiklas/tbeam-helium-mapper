@@ -52,14 +52,13 @@ float         last_send_lon           = 0;
 float         min_dist_moved          = MIN_DIST;
 float         dist_moved              = UINT32_MAX;
 unsigned int  adjusted_SEND_INTERVAL  = SEND_INTERVAL;
-//
 
 // do we want to auto-scale transmit window size?
 bool autoScaleTX = false;
 
 AXP20X_Class axp;
 bool pmu_irq = false;
-String baChStatus = "No charging";
+const char *baChStatus = "unknown";
 
 bool ssd1306_found = false;
 bool axp192_found = false;
@@ -100,11 +99,11 @@ bool trySend() {
   if (0 < gps_hdop() && gps_hdop() < 50 && gps_latitude() != 0 && gps_longitude() != 0 && gps_altitude() != 0)
   {
     char buffer[40];
-    snprintf(buffer, sizeof(buffer), "Latitude: %10.6f\n", gps_latitude());
+    snprintf(buffer, sizeof(buffer), "Lat: %10.6f\n", gps_latitude());
     screen_print(buffer);
-    snprintf(buffer, sizeof(buffer), "Longitude: %10.6f\n", gps_longitude());
+    snprintf(buffer, sizeof(buffer), "Long: %10.6f\n", gps_longitude());
     screen_print(buffer);
-    snprintf(buffer, sizeof(buffer), "Accuracy/HDOP: %4.2fm\n", gps_hdop());
+    snprintf(buffer, sizeof(buffer), "HDOP: %4.2fm\n", gps_hdop());
     screen_print(buffer);
 
     // check if we should transmit based on distance covered since last TX or are there other reasons:
@@ -164,16 +163,12 @@ bool trySend() {
       // prepare LoRa frame
       buildPacket(txBuffer);
 
-#if LORAWAN_CONFIRMED_EVERY > 0
-      bool confirmed = (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
+      bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
       if (confirmed) {
-        Serial.println("confirmation enabled");
+        Serial.println("ACK requested");
       }
-#else
-      bool confirmed = false;
-#endif
 
-      // send
+      // send it!
       packetQueued = true;
       ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
       return true;
@@ -226,10 +221,10 @@ void doDeepSleep(uint64_t msecToWake)
   esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
   // Only GPIOs which are have RTC functionality can be used in this bit map: 0,2,4,12-15,25-27,32-39.
-  uint64_t gpioMask = (1ULL << BUTTON_PIN);
+  uint64_t gpioMask = (1ULL << MIDDLE_BUTTON_PIN);
 
   // FIXME change polarity so we can wake on ANY_HIGH instead - that would allow us to use all three buttons (instead of just the first)
-  gpio_pullup_en((gpio_num_t) BUTTON_PIN);
+  gpio_pullup_en((gpio_num_t) MIDDLE_BUTTON_PIN);
 
   esp_sleep_enable_ext1_wakeup(gpioMask, ESP_EXT1_WAKEUP_ALL_LOW);
 
@@ -265,7 +260,7 @@ void sleep() {
 
 #if 0  
   // Set the user button to wake the board
-  sleep_interrupt(BUTTON_PIN, LOW);
+  sleep_interrupt(MIDDLE_BUTTON_PIN, LOW);
 
   doDeepSleep(SEND_INTERVAL);
 #endif
@@ -378,6 +373,7 @@ void axp192Init() {
       Serial.println("AXP192 Begin FAIL");
     }
     // axp.setChgLEDMode(LED_BLINK_4HZ);
+  #if 0
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
@@ -385,19 +381,21 @@ void axp192Init() {
     Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
     Serial.println("----------------------------------------");
+#endif
 
     axp.setPowerOutPut(AXP192_LDO2, AXP202_ON); // LORA radio
     axp.setPowerOutPut(AXP192_LDO3, AXP202_ON); // GPS main power
-    axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-    axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
+    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON); // OLED & AXP192 power
     axp.setDCDC1Voltage(3300); // for the OLED power
 
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
+    Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
+    //Serial.printf("LDO1: %s\n", axp.isLDO1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO3: %s\n", axp.isLDO3Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
 
     pinMode(PMU_IRQ, INPUT_PULLUP);
@@ -410,7 +408,9 @@ void axp192Init() {
     axp.clearIRQ();
 
     if (axp.isChargeing()) {
-      baChStatus = "Charging";
+      baChStatus = "Charging: Yes";
+    } else {
+      baChStatus = "Charging: No";
     }
   } else {
     Serial.println("AXP192 not found");
@@ -448,7 +448,7 @@ void setup() {
   axp192Init();
 
   // Buttons & LED
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
 
 #ifdef LED_PIN
   pinMode(LED_PIN, OUTPUT);
@@ -508,22 +508,38 @@ void loop() {
     sleep();
   }
 
-  // if user presses button for more than 3 secs, discard our network prefs and reboot (FIXME, use a debounce lib instead of this boilerplate)
-  static bool wasPressed = false;
-  static uint32_t minPressMs; // what tick should we call this press long enough
-  if (!digitalRead(BUTTON_PIN)) {
-
-    if (!wasPressed) { // just started a new press
-      // Serial.println("pressing");
-      wasPressed = true;
-      minPressMs = millis();
+  // Short press on power button (near USB) also causes PMIC IRQ
+  if (axp192_found && pmu_irq) {
+    char *irq_name = "Unrecognized";
+    pmu_irq = false;
+    axp.readIRQ();
+    if (axp.isChargingIRQ()) {
+       irq_name = "ChargingIRQ";
     }
+    if (axp.isVbusRemoveIRQ()) {
+      irq_name = "VbusRemoveIRQ";
+    }
+    if (axp.isPEKShortPressIRQ()) {
+      irq_name = "PEKShortPressIRQ";
+    }
+    char buffer[40];
+    snprintf(buffer, sizeof(buffer), "%s\n", irq_name);
+    screen_print(buffer);
 
-  } else if (wasPressed) {
+    // digitalWrite(2, !digitalRead(2));  No idea what this does
+    axp.clearIRQ();
+  }
 
+  // if user presses button for more than 3 secs, discard our network prefs and reboot (FIXME, use a debounce lib instead of this boilerplate)
+  static uint32_t pressTime; // what tick should we call this press long enough
+  if (!digitalRead(MIDDLE_BUTTON_PIN)) {
+    // Pressure is on
+    if (!pressTime) { // just started a new press
+      pressTime = millis();
+    }
+  } else if (pressTime) {
     // we just did a release
-    wasPressed = false;
-    if (millis() > minPressMs + 1000) {
+    if (millis() - pressTime > 1000) {
       // held long enough
       Serial.println("Long press!");
       if (autoScaleTX) {
@@ -553,10 +569,11 @@ void loop() {
 // #endif
     } else {
       // short press, send beacon
-      Serial.println("Short press :-P");
+      Serial.println("Short press.");
       justSendNow = true;
       trySend();
     }
+    pressTime = 0;  // Released
   }
 
   // Send every SEND_INTERVAL millis

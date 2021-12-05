@@ -112,9 +112,9 @@ void ttn_register(void (*callback)(uint8_t message));
 
 #if defined(T_BEAM_V07)
 #define LED_PIN         14
-#define BUTTON_PIN      39
+#define MIDDLE_BUTTON_PIN      39
 #elif defined(T_BEAM_V10)
-#define BUTTON_PIN      38
+#define MIDDLE_BUTTON_PIN      38 // Middle button SW5
 #endif
 
 // -----------------------------------------------------------------------------

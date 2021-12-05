@@ -135,23 +135,6 @@ void screen_setup() {
 void screen_loop() {
     if (!display) return;
 
-    #ifdef T_BEAM_V10
-    if (axp192_found && pmu_irq) {
-        pmu_irq = false;
-        axp.readIRQ();
-        if (axp.isChargingIRQ()) {
-            baChStatus = "Charging";
-        } else {
-            baChStatus = "No Charging";
-        }
-        if (axp.isVbusRemoveIRQ()) {
-            baChStatus = "No Charging";
-        }
-        Serial.println(baChStatus); //Prints charging status to screen
-        digitalWrite(2, !digitalRead(2));
-        axp.clearIRQ();
-    }
-    #endif
 
     display->clear();
     _screen_header();
