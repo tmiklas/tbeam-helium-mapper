@@ -33,7 +33,7 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1.22-tm-mp"
+#define APP_VERSION             "1.31 MaxP"
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -51,43 +51,38 @@ void ttn_register(void (*callback)(uint8_t message));
 // If using a single-channel gateway, uncomment this next option and set to your gateway's channel
 //#define SINGLE_CHANNEL_GATEWAY  0
 
-//Uncomment if you always want to see the boot logo at boot time
+// Uncomment if you always want to see the boot logo at boot time
 #define ALWAYS_SHOW_LOGO
 
-//Uncomment to enable discarding network settings by long pressing second button
+// Uncomment to enable discarding network settings by long pressing second button
 #define PREFS_DISCARD
 
 // If you are having difficulty sending messages to TTN after the first successful send,
 // uncomment the next option and experiment with values (~ 1 - 5)
 //#define CLOCK_ERROR             5
 
-#define DEBUG_PORT              Serial          // Serial debug port
-#define SERIAL_BAUD             115200          // Serial debug baud rate
-#define SLEEP_VOLTAGE           3.8             // Voltage threshold to sleep between messages.  0 for never.
-#define SEND_INTERVAL           (20 * 1000)     // Sleep for these many millis
-#define MESSAGE_TO_SLEEP_DELAY  500             // Time after message before going to sleep
-#define LOGO_DELAY              3000            // Time to show logo on first boot
+#define LOGO_DELAY              2000            // Time to show logo on first boot (ms)
+
+#define MIN_DIST                 68.0           // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
+#define STATIONARY_TX_INTERVAL   60             // If stationary, the LoRa frame will still be sent once every N seconds
+#define REST_WAIT                (30 * 60)      // If we haven't moved in this many seconds, send slower
+#define REST_TX_INTERVAL         (5 * 60)       // Slow resting packet frequency in seconds
+
+#define BATTERY_HI_VOLTAGE      4.1             // Above this voltage, no need to shut down
+#define BATTERY_LOW_VOLTAGE     3.6             // Below this voltage, power off until charging
+
 #define LORAWAN_PORT            2               // Port the messages will be sent to
 #define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message every these many messages (0 means never)
 #define LORAWAN_SF              DR_SF7          // Spreading factor (recommended DR_SF7 for ttn network map purposes, DR_SF10 works for slow moving trackers)
 #define LORAWAN_ADR             0               // Enable ADR
 #define REQUIRE_RADIO           true            // If true, we will fail to start if the radio is not found
 
-// If not defined, we will wait for lock forever
-//#define GPS_WAIT_FOR_LOCK       (60 * 1000)     // Wait after every boot for GPS lock (may need longer than 5s because we turned the gps off during deep sleep)
-
-// -----------------------------------------------------------------------------
-// LoRa send criteria
-// -----------------------------------------------------------------------------
-#define MIN_DIST                 35.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
-#define STATIONARY_TX_INTERVAL   30        // If stationary the LoRa frame will be sent once every N cycles... with 20sec cycle, interval of 30 means to transmit once every 10min
-#define DISTANCE_TARGET          100.0     // MUST be decimal number; distance target in meters
-
+#define DEBUG_PORT              Serial          // Serial debug port
+#define SERIAL_BAUD             115200          // Serial debug baud rate
 
 // -----------------------------------------------------------------------------
 // DEBUG
 // -----------------------------------------------------------------------------
-
 #ifdef DEBUG_PORT
 #define DEBUG_MSG(...) DEBUG_PORT.printf( __VA_ARGS__ )
 #else

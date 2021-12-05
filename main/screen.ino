@@ -41,11 +41,11 @@ void _screen_header() {
     if (axp192_found && millis() % 4000 < 2000)
     {
         // 2 bytes of Device EUI with Voltage and Current
-        snprintf(buffer, sizeof(buffer), "#%04X", ((DEVEUI[7] << 8) | DEVEUI[6]));
+        snprintf(buffer, sizeof(buffer), "#%03X", (((DEVEUI[7] & 0xF) << 8) | DEVEUI[6]));
         display->setTextAlignment(TEXT_ALIGN_LEFT);
         display->drawString(0, 2, buffer);
 
-        snprintf(buffer, sizeof(buffer), "%.1fV %.0fmA", axp.getBattVoltage() / 1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
+        snprintf(buffer, sizeof(buffer), "%.2fV %.0fmA", axp.getBattVoltage() / 1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
     }
     else
     {

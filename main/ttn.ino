@@ -391,6 +391,14 @@ uint32_t ttn_get_count() {
   return count;
 }
 
+void ttn_write_prefs() {
+    Preferences p;
+    if(p.begin("lora", false)) {
+        p.putUInt("count", count);
+        p.end();
+    }
+}
+
 static void ttn_set_cnt() {
     LMIC_setSeqnoUp(count);
 
@@ -401,12 +409,7 @@ static void ttn_set_cnt() {
     uint32_t now = millis();
     if(now < lastWriteMsec || (now - lastWriteMsec) > 5 * 60 * 1000L) { // write if we roll over (50 days) or 5 mins
         lastWriteMsec = now;
-
-        Preferences p;
-        if(p.begin("lora", false)) {
-            p.putUInt("count", count);
-            p.end();
-        }
+        ttn_write_prefs();
     }
 }
 

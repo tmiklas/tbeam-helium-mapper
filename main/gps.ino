@@ -28,7 +28,6 @@ uint16_t altitudeGps;
 uint8_t hdopGps;
 uint8_t sats;
 int speed;
-unsigned char *puc;
 char t[32]; // used to sprintf for Serial output
 
 TinyGPSPlus _gps;
