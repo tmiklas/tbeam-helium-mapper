@@ -63,13 +63,13 @@ void ttn_register(void (*callback)(uint8_t message));
 
 #define LOGO_DELAY              2000            // Time to show logo on first boot (ms)
 
-#define MIN_DIST                 68.0           // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
+#define MIN_DIST                 50.0           // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
 #define STATIONARY_TX_INTERVAL   60             // If stationary, the LoRa frame will still be sent once every N seconds
 #define REST_WAIT                (30 * 60)      // If we haven't moved in this many seconds, send slower
-#define REST_TX_INTERVAL         (5 * 60)       // Slow resting packet frequency in seconds
+#define REST_TX_INTERVAL         ( 5 * 60)       // Slow resting packet frequency in seconds
 
-#define BATTERY_HI_VOLTAGE      4.1             // Above this voltage, no need to shut down
-#define BATTERY_LOW_VOLTAGE     3.6             // Below this voltage, power off until charging
+#define BATTERY_HI_VOLTAGE      4.0             // Above this voltage, send faster updates even while stationary
+#define BATTERY_LOW_VOLTAGE     3.4             // Below this voltage, power off until charging
 
 #define LORAWAN_PORT            2               // Port the messages will be sent to
 #define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message every these many messages (0 means never)
