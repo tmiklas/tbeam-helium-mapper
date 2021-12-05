@@ -6,7 +6,12 @@
   - Changed Text output to reflect Helium, and not TTL (Code referances ttn, just to prevent brakes in this awesome code)
   - Changed credentials file to use OTAA by default.
   - Changed GPS metric output text "Error", to "Accuracy/HDOP".
-
+*/
+/*
+  Modifications by Max-Plastix
+  - DevEUI is auto-generated per-device
+  - Print all three ID values to console at boot, in a format that pastes into Helium Console. 
+  - Change Payload to #2 and match CubeCell Mapper format, including battery voltage. (Shared decoder with CubeCell)
 */
 /*
 
@@ -38,23 +43,19 @@
 #include <Wire.h>
 #include <axp20x.h>
 
-bool          movementTrackingActive  = false;  // have we got a lock and sent first frame...
-unsigned int  stationaryTickCounter   = 1;  // count how many we should have TX but didn't because we didn't move
-bool          justSendNow             = false; // if set to true, this will force TX - no more
-unsigned int  stationaryTxInterval    = STATIONARY_TX_INTERVAL;
+bool          justSendNow             = true; // Start by sending
+unsigned long int  last_send_millis        = 0;
 float         last_send_lat           = 0;
 float         last_send_lon           = 0;
 float         min_dist_moved          = MIN_DIST;
-float         dist_moved              = UINT32_MAX;
-unsigned int  adjusted_SEND_INTERVAL  = SEND_INTERVAL;
-//
+float         dist_moved              = 0;
 
 // do we want to auto-scale transmit window size?
 bool autoScaleTX = false;
 
 AXP20X_Class axp;
 bool pmu_irq = false;
-String baChStatus = "No charging";
+const char *baChStatus = "unknown";
 
 bool ssd1306_found = false;
 bool axp192_found = false;
@@ -67,6 +68,8 @@ static uint8_t txBuffer[10];
 #elif defined(PAYLOAD_USE_CAYENNE)
 // CAYENNE DF
 static uint8_t txBuffer[11] = {0x03, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+#elif defined (PAYLOAD_USE_MAPPER)
+  static uint8_t txBuffer[11];
 #endif
 
 // deep sleep support
@@ -83,120 +86,93 @@ void buildPacket(uint8_t txBuffer[]); // needed for platformio
    If we have a valid position send it to the server.
    @return true if we decided to send.
 */
-bool trySend() {
-  packetSent = false;
+unsigned long int tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
+
+bool trySend()
+{
+  char buffer[40];
+  if (gps_hdop() <= 0 || gps_hdop() > 50 
+      || gps_latitude() == 0.0                 // Not fair to the whole equator
+      || gps_latitude() > 90 || gps_latitude() < -90 
+      || gps_longitude() == 0.0    // Not fair to King George
+      || gps_longitude() < -180 || gps_longitude() > 180 
+      || gps_altitude() == 0.0 // Not fair to the ocean
+  )
+    return false; // Rejected as bogus GPS reading.
 
   // distance from last transmitted location
   float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, gps_latitude(), gps_longitude());
+  #if 0
+  snprintf(buffer, sizeof(buffer), "Lat: %10.6f\n", gps_latitude());
+  screen_print(buffer);
+  snprintf(buffer, sizeof(buffer), "Long: %10.6f\n", gps_longitude());
+  screen_print(buffer);
+  snprintf(buffer, sizeof(buffer), "HDOP: %4.2fm\n", gps_hdop());
+  screen_print(buffer);
+  #endif
 
-  // We also wait for altitude being not exactly zero, because the GPS chip generates a bogus 0 alt report when first powered on
-  if (0 < gps_hdop() && gps_hdop() < 50 && gps_latitude() != 0 && gps_longitude() != 0 && gps_altitude() != 0)
+  // check if we should transmit based on distance covered since last TX or are there other reasons:
+  // - TX when distance traveled above required threshold
+  // - TX when we are not tracking distance yet - happens on first trySend() after boot-up/reset - default is distance to (0,0) so more than usual 50m
+  // - TX when stationary (not met movement requirement) but waited enough TX cycles (report I'm still alive)
+  // - TX when USR button short presset to force send right now
+  // in all other cases sleep and return false
+
+  boolean send_now;
+  // rudimentary debug to serial port
+  if (justSendNow)
   {
-    char buffer[40];
-    snprintf(buffer, sizeof(buffer), "Latitude: %10.6f\n", gps_latitude());
-    screen_print(buffer);
-    snprintf(buffer, sizeof(buffer), "Longitude: %10.6f\n", gps_longitude());
-    screen_print(buffer);
-    snprintf(buffer, sizeof(buffer), "Accuracy/HDOP: %4.2fm\n", gps_hdop());
-    screen_print(buffer);
+    justSendNow = false;
+    Serial.println("** JUST_SEND_NOW");
+    send_now = true;
+  }
+  else if (dist_moved > min_dist_moved)
+  {
+    Serial.println("** MOVING");
+    send_now = true;
+  }
+  else if (millis() - last_send_millis > tx_interval_ms)
+  {
+    Serial.println("** STATIONARY_TX");
+    Serial.printf("last = %lu, interval = %lu\n", last_send_millis, tx_interval_ms);
+    send_now = true;
+  }
+  else
+  {
+    send_now = false;
+  }
 
-    // check if we should transmit based on distance covered since last TX or are there other reasons:
-    // - TX when distance traveled above required threshold
-    // - TX when we are not tracking distance yet - happens on first trySend() after boot-up/reset - default is distance to (0,0) so more than usual 50m
-    // - TX when stationary (not met movement requirement) but waited enough TX cycles (report I'm still alive)
-    // - TX when USR button short presset to force send right now
-    // in all other cases sleep and return false
-
-    if (dist_moved > min_dist_moved || justSendNow || stationaryTickCounter % stationaryTxInterval == 0) {
-
-      // rudimentary debug to serial port
-      if (dist_moved > min_dist_moved) {
-        Serial.println("** MOVING");
-      } else if (justSendNow) {
-        Serial.println("** JUST_SEND_NOW");
-      } else if (stationaryTickCounter % stationaryTxInterval != 0) {
-        Serial.println("** TICK_COUNT_MODULO_ZERO");
-      }
-
-      // showing movement on screen depends on if we track it yet or not
-      // first TX after boot-up does not have it, but later TX will do
-      if (movementTrackingActive) {
-        snprintf(buffer, sizeof(buffer), "Movement: %4.1fm\n", dist_moved);
-        screen_print(buffer);
-      }
-
-      // TX window auto-scaling
-      // desired ping distance is 200m
-      if (autoScaleTX && !justSendNow) {
-        float newWindow = DISTANCE_TARGET / (dist_moved / adjusted_SEND_INTERVAL);  // seconds
-        if (newWindow > SEND_INTERVAL) { // both are in millis!
-          // we're too slow... default back to old mode with ping every SEND_INTERVAL
-          newWindow = SEND_INTERVAL;
-        } else if (newWindow < 2000) {
-          // this is 100m/s movement or 360kph or 220mph :-o
-          newWindow = 2000;
-        }
-        snprintf(buffer, sizeof(buffer), "TX window: %4.1fsec\n", newWindow / 1000);
-        screen_print(buffer);
-        adjusted_SEND_INTERVAL = newWindow; // millis
-      }
-
-      // set back to normal mode
-      justSendNow = false;
-
-      // start movement tracking
-      movementTrackingActive = true;
-
-      // reset stationary cycle counter
-      stationaryTickCounter = 1;
-
-      // set last transmit location for later
-      last_send_lat = gps_latitude();
-      last_send_lon = gps_longitude();
-
-      // prepare LoRa frame
-      buildPacket(txBuffer);
-
-#if LORAWAN_CONFIRMED_EVERY > 0
-      bool confirmed = (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
-      if (confirmed) {
-        Serial.println("confirmation enabled");
-      }
-#else
-      bool confirmed = false;
-#endif
-
-      // send
-      packetQueued = true;
-      ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
-      return true;
-
-    } else {
-
-      // we are stationary and have nothing to report to network
-      // so we only update screen and show how many cycles untill next stationary TX 
-      // this is the "Next TTL" countdown
-
-      // showing movement on screen depends on if we track it yet or not
-      if (movementTrackingActive) {
-        snprintf(buffer, sizeof(buffer), "Movement: %4.1fm\n", dist_moved);
-        screen_print(buffer);
-        snprintf(buffer, sizeof(buffer), "Next TTL: %03d\n", stationaryTxInterval - stationaryTickCounter);
-        screen_print(buffer);        
-      }
-      // update counter
-      stationaryTickCounter++;
-      Serial.println("** STATIONARY");
-      return false;
+  if (send_now)
+  {
+    //snprintf(buffer, sizeof(buffer), "Moved %4.1fm\n", dist_moved);
+    if (dist_moved < 1000000) {
+      snprintf(buffer, sizeof(buffer), "%lus %.0fm ", (millis()-last_send_millis)/1000, dist_moved);
+      screen_print(buffer);
     }
 
+    // prepare LoRa frame
+    buildPacket(txBuffer);
+
+    bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
+    if (confirmed)
+      Serial.println("ACK requested");
+
+    // send it!
+    packetQueued = true;
+    ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
+    packetSent = true;
+    last_send_millis = millis();
+    last_send_lat = gps_latitude();
+    last_send_lon = gps_longitude();
+    return true;
   }
-  else {
-    // it was bogus read so not transmitting either
+  else
+  {
+    // snprintf(buffer, sizeof(buffer), "Still: %4.1fm\n", dist_moved);
+    // screen_print(buffer);
     return false;
   }
 }
-
 
 void doDeepSleep(uint64_t msecToWake)
 {
@@ -219,10 +195,10 @@ void doDeepSleep(uint64_t msecToWake)
   esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
   // Only GPIOs which are have RTC functionality can be used in this bit map: 0,2,4,12-15,25-27,32-39.
-  uint64_t gpioMask = (1ULL << BUTTON_PIN);
+  uint64_t gpioMask = (1ULL << MIDDLE_BUTTON_PIN);
 
   // FIXME change polarity so we can wake on ANY_HIGH instead - that would allow us to use all three buttons (instead of just the first)
-  gpio_pullup_en((gpio_num_t) BUTTON_PIN);
+  gpio_pullup_en((gpio_num_t) MIDDLE_BUTTON_PIN);
 
   esp_sleep_enable_ext1_wakeup(gpioMask, ESP_EXT1_WAKEUP_ALL_LOW);
 
@@ -231,64 +207,76 @@ void doDeepSleep(uint64_t msecToWake)
 }
 
 
-void sleep() {
-#if SLEEP_BETWEEN_MESSAGES
+void update_status() {
+  float_t batt_volts = axp.getBattVoltage() / 1000.0;
+  float_t charge_ma = axp.getBattChargeCurrent();
+  float_t discharge_ma = axp.getBattDischargeCurrent();
+  // static boolean screen_sleep = false;
 
-  // If the user has a screen, tell them we are about to sleep
-  if (ssd1306_found) {
-    // Show the going to sleep message on the screen
-    char buffer[20];
-    snprintf(buffer, sizeof(buffer), "Sleeping in %3.1fs\n", (MESSAGE_TO_SLEEP_DELAY / 1000.0));
-    screen_print(buffer);
-
-    // Wait for MESSAGE_TO_SLEEP_DELAY millis to sleep
-    delay(MESSAGE_TO_SLEEP_DELAY);
-
-    // Turn off screen
-    screen_off();
+  if (0)
+  {
+    char buffer[30];
+    snprintf(buffer, sizeof(buffer), "%.2fv %.1fmA\n", batt_volts, charge_ma - discharge_ma);
+    Serial.println(buffer);
   }
 
+#if 0
+  if ((batt_volts > SLEEP_VOLTAGE) || (charge_ma - discharge_ma > 1.0)) {
+    if (screen_sleep) {
+      screen_sleep = false;
+      screen_on();
+    }
+  } else {
+    if (!screen_sleep) {
+      screen_sleep = true;
+      screen_off();
+    }
+  }
+#endif
+
+#if 0  
   // Set the user button to wake the board
-  sleep_interrupt(BUTTON_PIN, LOW);
+  sleep_interrupt(MIDDLE_BUTTON_PIN, LOW);
 
-  // We sleep for the interval between messages minus the current millis
-  // this way we distribute the messages evenly every SEND_INTERVAL millis
-  uint32_t sleep_for = (millis() < SEND_INTERVAL) ? SEND_INTERVAL - millis() : SEND_INTERVAL;
-  doDeepSleep(sleep_for);
-
+  doDeepSleep(SEND_INTERVAL);
 #endif
 }
 
 
 void callback(uint8_t message) {
-  bool ttn_joined = false;
-  if (EV_JOINED == message) {
-    ttn_joined = true;
+#if 0
+  {
+    char buffer[20];
+    snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
+    screen_print(buffer);
   }
-  if (EV_JOINING == message) {
-    if (ttn_joined) {
-      screen_print("Helium joining...\n");
-    } else {
-      screen_print("Joined Helium!\n");
-    }
-  }
-  if (EV_JOIN_FAILED == message) screen_print("Helium join failed\n");
-  if (EV_REJOIN_FAILED == message) screen_print("Helium rejoin failed\n");
-  if (EV_RESET == message) screen_print("Reset Helium connection\n");
-  if (EV_LINK_DEAD == message) screen_print("Helium link dead\n");
-  if (EV_ACK == message) screen_print("ACK received\n");
-  if (EV_PENDING == message) screen_print("Message discarded\n");
-  if (EV_QUEUED == message) screen_print("Message queued\n");
+#endif
+  if (EV_JOIN_TXCOMPLETE == message) Serial.println("# JOIN_TXCOMPLETE");
+  if (EV_TXCOMPLETE == message) Serial.println("# TXCOMPLETE");
+  if (EV_RXSTART == message) Serial.println("# RXSTART");
+  if (EV_TXCANCELED == message) Serial.println("# TXCANCELED");
+  if (EV_TXSTART == message) Serial.println("# TXSTART");
+  if (EV_JOINING == message) Serial.println("# JOINING");
+  if (EV_JOINED == message) Serial.println("# JOINED");
+  if (EV_JOIN_FAILED == message) Serial.println("# JOIN_FAILED");
+  if (EV_REJOIN_FAILED == message) Serial.println("# REJOIN_FAILED");
+  if (EV_RESET == message) Serial.println("# RESET");
+  if (EV_LINK_DEAD == message) Serial.println("# LINK_DEAD");
+  if (EV_ACK == message) Serial.println("# ACK");
+  if (EV_PENDING == message) Serial.println("# PENDING");
+  if (EV_QUEUED == message) Serial.println("# QUEUED");
 
+  if (EV_TXSTART == message) {
+    screen_print("Tx.. ");
+  }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
-    screen_print("Message sent\n");
+    screen_print("sent.\n");
     packetQueued = false;
     packetSent = true;
   }
 
   if (EV_RESPONSE == message) {
-
     screen_print("[Helium] Response: ");
 
     size_t len = ttn_response_len();
@@ -361,6 +349,7 @@ void axp192Init() {
       Serial.println("AXP192 Begin FAIL");
     }
     // axp.setChgLEDMode(LED_BLINK_4HZ);
+  #if 0
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
@@ -368,19 +357,21 @@ void axp192Init() {
     Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
     Serial.println("----------------------------------------");
+#endif
 
     axp.setPowerOutPut(AXP192_LDO2, AXP202_ON); // LORA radio
     axp.setPowerOutPut(AXP192_LDO3, AXP202_ON); // GPS main power
-    axp.setPowerOutPut(AXP192_DCDC2, AXP202_ON);
-    axp.setPowerOutPut(AXP192_EXTEN, AXP202_ON);
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);
+    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
+    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON); // OLED & AXP192 power
     axp.setDCDC1Voltage(3300); // for the OLED power
 
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
+    Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
+    //Serial.printf("LDO1: %s\n", axp.isLDO1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO3: %s\n", axp.isLDO3Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
 
     pinMode(PMU_IRQ, INPUT_PULLUP);
@@ -393,7 +384,9 @@ void axp192Init() {
     axp.clearIRQ();
 
     if (axp.isChargeing()) {
-      baChStatus = "Charging";
+      baChStatus = "Charging: Yes";
+    } else {
+      baChStatus = "Charging: No";
     }
   } else {
     Serial.println("AXP192 not found");
@@ -431,7 +424,7 @@ void setup() {
   axp192Init();
 
   // Buttons & LED
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
 
 #ifdef LED_PIN
   pinMode(LED_PIN, OUTPUT);
@@ -441,16 +434,17 @@ void setup() {
   DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
 
   // Don't init display if we don't have one or we are waking headless due to a timer event
-  if (wakeCause == ESP_SLEEP_WAKEUP_TIMER)
+  if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
     ssd1306_found = false; // forget we even have the hardware
 
-  if (ssd1306_found) screen_setup();
+  if (ssd1306_found) {
+    screen_setup();
+  }
 
   // Init GPS
   gps_setup();
 
   // Show logo on first boot after removing battery
-
 #ifndef ALWAYS_SHOW_LOGO
   if (bootCount == 0) {
 #endif
@@ -467,109 +461,104 @@ void setup() {
     screen_print("[ERR] Radio module not found!\n");
 
     if (REQUIRE_RADIO) {
-      delay(MESSAGE_TO_SLEEP_DELAY);
+//      delay(MESSAGE_TO_SLEEP_DELAY);
       screen_off();
       sleep_forever();
     }
   }
   else {
     ttn_register(callback);
+    // ttn_erase_prefs();
     ttn_join();
     ttn_adr(LORAWAN_ADR);
   }
+}
+
+void update_activity()
+{
+  float bat_volts = axp.getBattVoltage() / 1000;
+  float charge_ma = axp.getBattChargeCurrent();
+  // float discharge_ma = axp.getBatChargeCurrent();
+
+  if (bat_volts < BATTERY_LOW_VOLTAGE && charge_ma < 99.0)
+  {
+    Serial.println("Low Battery OFF");
+    screen_print("Low Battery OFF\n");
+    ttn_write_prefs();
+    delay(4999); // Give some time to read the screen
+    axp.shutdown(); // PMIC power off
+    // Does not return
+  }
+
+  if (bat_volts > BATTERY_HI_VOLTAGE)
+    tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
+  else if (millis() - last_send_millis > REST_WAIT) 
+    tx_interval_ms = REST_TX_INTERVAL * 1000;
+  else
+    tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
 }
 
 void loop() {
   gps_loop();
   ttn_loop();
   screen_loop();
+  update_activity();
 
   if (packetSent) {
     packetSent = false;
-    sleep();
   }
 
-  // if user presses button for more than 3 secs, discard our network prefs and reboot (FIXME, use a debounce lib instead of this boilerplate)
-  static bool wasPressed = false;
-  static uint32_t minPressMs; // what tick should we call this press long enough
-  if (!digitalRead(BUTTON_PIN)) {
-
-    if (!wasPressed) { // just started a new press
-      // Serial.println("pressing");
-      wasPressed = true;
-      minPressMs = millis();
+  // Short press on power button (near USB) also causes PMIC IRQ
+  if (axp192_found && pmu_irq) {
+    const char *irq_name = "Unrecognized";
+    pmu_irq = false;
+    axp.readIRQ();
+    if (axp.isChargingIRQ()) {
+       irq_name = "ChargingIRQ";
     }
+    if (axp.isVbusRemoveIRQ()) {
+      irq_name = "VbusRemoveIRQ";
+    }
+    if (axp.isPEKShortPressIRQ()) {
+      irq_name = "PEKShortPressIRQ";
+    }
+    char buffer[40];
+    snprintf(buffer, sizeof(buffer), "%s\n", irq_name);
+    screen_print(buffer);
 
-  } else if (wasPressed) {
+    // digitalWrite(2, !digitalRead(2));  No idea what this does
+    axp.clearIRQ();
+  }
 
+  static uint32_t pressTime = 0; // what tick should we call this press long enough
+  if (!digitalRead(MIDDLE_BUTTON_PIN)) {
+    // Pressure is on
+    if (!pressTime) { // just started a new press
+      pressTime = millis();
+    }
+  } else if (pressTime) {
     // we just did a release
-    wasPressed = false;
-    if (millis() > minPressMs + 1000) {
+    if (millis() - pressTime > 1000) {
       // held long enough
       Serial.println("Long press!");
-      if (autoScaleTX) {
-        // turn off auto scaling to static trigger
-        autoScaleTX = false;
-        adjusted_SEND_INTERVAL = SEND_INTERVAL;
-        char buffer[40];
-        snprintf(buffer, sizeof(buffer), "TX scaling OFF\n");
-        screen_print(buffer);        
-        // screen_print("TX Scaling OFF");
-      } else {
-        // enable auto-scaling
-        autoScaleTX = true;
-        char buffer[40];
-        snprintf(buffer, sizeof(buffer), "TX scaling ON\n");
-        screen_print(buffer);        
-        // screen_print("TX Scaling ON");
-      }
-// #ifndef PREFS_DISCARD
-//       screen_print("Discarding prefs disabled\n");
-// #endif
-// #ifdef PREFS_DISCARD
-//       screen_print("Discarding prefs!\n");
-//       ttn_erase_prefs();
-//       delay(5000); // Give some time to read the screen
-//       ESP.restart();
-// #endif
 
+      screen_print("Discarding prefs!\n");
+      ttn_erase_prefs();
+      delay(5000); // Give some time to read the screen
+      ESP.restart();
     } else {
-
       // short press, send beacon
-      Serial.println("Short press :-P");
+      Serial.println("Short press.");
       justSendNow = true;
       trySend();
     }
+    pressTime = 0;  // Released
   }
 
-  // Send every SEND_INTERVAL millis
-  static uint32_t last = 0;
-  static bool first = true;
-  if (0 == last || millis() - last > adjusted_SEND_INTERVAL) {
-    if (trySend()) {
-      last = millis();
-      first = false;
-      //      Serial.println("TRANSMITTED");
-    } else {
-      if (first) {
-        screen_print("Waiting GPS lock\n");
-        first = false;
-      }
-
-      // update time of last transmission time also when not transmitted, 
-      // to make sure we don't fall into a fast loop trying to send when not moving
-      // no need to waste battery cycling empty...
-      last = millis();
-
-#ifdef GPS_WAIT_FOR_LOCK
-      if (millis() > GPS_WAIT_FOR_LOCK) {
-        sleep();
-      }
-#endif
-
-      // No GPS lock yet, let the OS put the main CPU in low power mode for 100ms (or until another interrupt comes in)
-      // i.e. don't just keep spinning in loop as fast as we can.
+  if (trySend()) {
+      // Good send
+  } else {
+      // Nothing sent.  Rest
       delay(100);
-    }
   }
 }

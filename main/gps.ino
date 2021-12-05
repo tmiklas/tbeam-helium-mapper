@@ -20,12 +20,14 @@
 */
 
 #include <TinyGPS++.h>
+#include "configuration.h"
 
 uint32_t LatitudeBinary;
 uint32_t LongitudeBinary;
 uint16_t altitudeGps;
 uint8_t hdopGps;
 uint8_t sats;
+int speed;
 char t[32]; // used to sprintf for Serial output
 
 TinyGPSPlus _gps;
@@ -69,7 +71,46 @@ static void gps_loop() {
     }
 }
 
-#if defined(PAYLOAD_USE_FULL)
+
+#if defined(PAYLOAD_USE_MAPPER)
+// Same format as CubeCell mappers
+void buildPacket(uint8_t txBuffer[11]) {
+  LatitudeBinary = ((_gps.location.lat() + 90) / 180.0) * 16777215;
+  LongitudeBinary = ((_gps.location.lng() + 180) / 360.0) * 16777215;
+  altitudeGps = (uint16_t)_gps.altitude.meters();
+  speed = (uint16_t)_gps.speed.kmph(); // convert from float
+  sats = _gps.satellites.value();
+  // hdopGps = _gps.hdop.value() / 10;
+
+  sprintf(t, "Lat: %f", _gps.location.lat());
+  Serial.println(t);
+  sprintf(t, "Lng: %f", _gps.location.lng());
+  Serial.println(t);
+  sprintf(t, "Alt: %f", _gps.altitude.meters());
+  Serial.println(t);
+//  sprintf(t, "Hdop: %d", hdopGps);
+//  Serial.println(t);
+  sprintf(t, "Sats: %d", sats);
+  Serial.println(t);
+
+  txBuffer[0] = (LatitudeBinary >> 16) & 0xFF;
+  txBuffer[1] = (LatitudeBinary >> 8) & 0xFF;
+  txBuffer[2] = LatitudeBinary & 0xFF;
+  txBuffer[3] = (LongitudeBinary >> 16) & 0xFF;
+  txBuffer[4] = (LongitudeBinary >> 8) & 0xFF;
+  txBuffer[5] = LongitudeBinary & 0xFF;
+  txBuffer[6] = (altitudeGps >> 8) & 0xFF;
+  txBuffer[7] = altitudeGps & 0xFF;
+
+  txBuffer[8] = ((unsigned char *)(&speed))[0];
+
+  uint16_t batteryVoltage = ((float_t)((float_t)(axp.getBattVoltage()) / 10.0) + .5);
+  txBuffer[9] = (uint8_t)((batteryVoltage - 200) & 0xFF);
+ 
+  txBuffer[10] = sats & 0xFF;
+}
+
+#elif defined(PAYLOAD_USE_FULL)
 
     // More data than PAYLOAD_USE_CAYENNE
     void buildPacket(uint8_t txBuffer[10])
@@ -99,6 +140,7 @@ static void gps_loop() {
         txBuffer[5] = LongitudeBinary & 0xFF;
         txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
         txBuffer[7] = altitudeGps & 0xFF;
+
         txBuffer[8] = hdopGps & 0xFF;
         txBuffer[9] = sats & 0xFF;
     }

@@ -117,7 +117,7 @@ static void printHex2(unsigned v) {
 }
 
 #ifdef USE_OTAA
-// generate DevEUI from macaddr if needed
+// generate DevEUI from macaddr if it's all zero
 void initDevEUI() {
     bool needInit = true;
     for(int i = 0; i < sizeof(DEVEUI); i++)
@@ -125,14 +125,6 @@ void initDevEUI() {
 
     if(needInit)
         gen_lora_deveui(DEVEUI);
-
-    Serial.print("\n\nDevEUI: ");
-    for(int i = 0; i < sizeof(DEVEUI); i++) {
-        if (i != 0)
-                Serial.print("-");
-        printHex2(DEVEUI[i]);
-    }
-    Serial.println();
 }
 #endif
 
@@ -151,7 +143,7 @@ void onEvent(ev_t event) {
             LMIC_setLinkCheckMode(0); // Link check problematic if not using ADR. Must be set after join
         }
 
-        Serial.println(F("EV_JOINED"));
+        Serial.println(F("! EV_JOINED as:"));
 
         u4_t netid = 0;
         devaddr_t devaddr = 0;
@@ -187,9 +179,9 @@ void onEvent(ev_t event) {
         }
         break; }
     case EV_TXCOMPLETE:
-        Serial.println(F("EV_TXCOMPLETE (inc. RX win. wait)"));
+        Serial.println(F("! EV_TXCOMPLETE"));
         if (LMIC.txrxFlags & TXRX_ACK) {
-            Serial.println(F("Received ack"));
+            Serial.println(F("! Received ACK"));
             _ttn_callback(EV_ACK);
         }
         if (LMIC.dataLen) {
@@ -243,6 +235,23 @@ bool ttn_setup() {
     #if defined(USE_OTAA)
         initDevEUI();
     #endif
+
+    // Print out DevEUI, AppEUI, APPKEY suitable for Helium Console
+    Serial.println();
+    Serial.print("DevEUI (msb): ");
+    for (int i = 0; i < sizeof(DEVEUI); i++)
+        printHex2(DEVEUI[sizeof(DEVEUI) - 1 - i]);
+    Serial.println();
+
+    Serial.print("APPEUI (msb): ");
+    for (int i = 0; i < sizeof(APPEUI); i++)
+        printHex2(APPEUI[sizeof(APPEUI) - 1 - i]);
+    Serial.println();
+
+    Serial.print("APPKEY (msb): ");
+    for (int i = 0; i < sizeof(APPKEY); i++)
+        printHex2(APPKEY[i]);
+    Serial.println();
 
     // SPI interface
     SPI.begin(SCK_GPIO, MISO_GPIO, MOSI_GPIO, NSS_GPIO);
@@ -382,6 +391,14 @@ uint32_t ttn_get_count() {
   return count;
 }
 
+void ttn_write_prefs() {
+    Preferences p;
+    if(p.begin("lora", false)) {
+        p.putUInt("count", count);
+        p.end();
+    }
+}
+
 static void ttn_set_cnt() {
     LMIC_setSeqnoUp(count);
 
@@ -392,12 +409,7 @@ static void ttn_set_cnt() {
     uint32_t now = millis();
     if(now < lastWriteMsec || (now - lastWriteMsec) > 5 * 60 * 1000L) { // write if we roll over (50 days) or 5 mins
         lastWriteMsec = now;
-
-        Preferences p;
-        if(p.begin("lora", false)) {
-            p.putUInt("count", count);
-            p.end();
-        }
+        ttn_write_prefs();
     }
 }
 
