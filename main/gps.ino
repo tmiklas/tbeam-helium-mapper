@@ -84,7 +84,7 @@ void buildPacket(uint8_t txBuffer[11]) {
 
   sprintf(t, "Lat: %f, ", _gps.location.lat());
   Serial.print(t);
-  sprintf(t, "Lng: %f, ", _gps.location.lng());
+  sprintf(t, "Long: %f, ", _gps.location.lng());
   Serial.print(t);
   sprintf(t, "Alt: %f, ", _gps.altitude.meters());
   Serial.print(t);

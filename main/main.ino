@@ -139,7 +139,7 @@ bool trySend()
   else if (millis() - last_send_millis > tx_interval_ms)
   {
     Serial.println("** STATIONARY_TX");
-    Serial.printf("last = %lu, interval = %lu\n", last_send_millis, tx_interval_ms);
+//    Serial.printf("last = %lu, interval = %lu\n", last_send_millis, tx_interval_ms);
     send_now = true;
   }
   else
@@ -481,7 +481,7 @@ void update_activity()
   float charge_ma = axp.getBattChargeCurrent();
   // float discharge_ma = axp.getBatChargeCurrent();
 
-  if (bat_volts < BATTERY_LOW_VOLTAGE && charge_ma < 99.0)
+  if (axp.isBatteryConnect() && bat_volts < BATTERY_LOW_VOLTAGE && charge_ma < 99.0)
   {
     Serial.println("Low Battery OFF");
     screen_print("Low Battery OFF\n");
