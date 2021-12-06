@@ -508,6 +508,89 @@ void update_activity()
   }
 }
 
+/* I must know what that interrupt was for! */
+const char *find_irq_name (void)
+{
+  const char *irq_name = "MysteryIRQ";
+
+  if (axp.isAcinOverVoltageIRQ())
+    irq_name = "isAcinOverVoltageIRQ";
+  else if (axp.isAcinPlugInIRQ())
+    irq_name = "isAcinPlugInIRQ";
+  else if (axp.isAcinRemoveIRQ())
+    irq_name = "isAcinRemoveIRQ";
+  else if (axp.isVbusOverVoltageIRQ())
+    irq_name = "isVbusOverVoltageIRQ";
+  else if (axp.isVbusPlugInIRQ())
+    irq_name = "isVbusPlugInIRQ";
+  else if (axp.isVbusRemoveIRQ())
+    irq_name = "isVbusRemoveIRQ";
+  else if (axp.isVbusLowVHOLDIRQ())
+    irq_name = "isVbusLowVHOLDIRQ";
+  else if (axp.isBattPlugInIRQ())
+    irq_name = "isBattPlugInIRQ";
+  else if (axp.isBattRemoveIRQ())
+    irq_name = "isBattRemoveIRQ";
+  else if (axp.isBattEnterActivateIRQ())
+    irq_name = "isBattEnterActivateIRQ";
+  else if (axp.isBattExitActivateIRQ())
+    irq_name = "isBattExitActivateIRQ";
+  else if (axp.isChargingIRQ())
+    irq_name = "isChargingIRQ";
+  else if (axp.isChargingDoneIRQ())
+    irq_name = "isChargingDoneIRQ";
+  else if (axp.isBattTempLowIRQ())
+    irq_name = "isBattTempLowIRQ";
+  else if (axp.isBattTempHighIRQ())
+    irq_name = "isBattTempHighIRQ";
+  else if (axp.isChipOvertemperatureIRQ())
+    irq_name = "isChipOvertemperatureIRQ";
+  else if (axp.isChargingCurrentLessIRQ())
+    irq_name = "isChargingCurrentLessIRQ";
+  else if (axp.isDC2VoltageLessIRQ())
+    irq_name = "isDC2VoltageLessIRQ";
+  else if (axp.isDC3VoltageLessIRQ())
+    irq_name = "isDC3VoltageLessIRQ";
+  else if (axp.isLDO3VoltageLessIRQ())
+    irq_name = "isLDO3VoltageLessIRQ";
+  else if (axp.isPEKShortPressIRQ())
+    irq_name = "isPEKShortPressIRQ";
+  else if (axp.isPEKLongtPressIRQ())
+    irq_name = "isPEKLongtPressIRQ";
+  else if (axp.isNOEPowerOnIRQ())
+    irq_name = "isNOEPowerOnIRQ";
+  else if (axp.isNOEPowerDownIRQ())
+    irq_name = "isNOEPowerDownIRQ";
+  else if (axp.isVBUSEffectiveIRQ())
+    irq_name = "isVBUSEffectiveIRQ";
+  else if (axp.isVBUSInvalidIRQ())
+    irq_name = "isVBUSInvalidIRQ";
+  else if (axp.isVUBSSessionIRQ())
+    irq_name = "isVUBSSessionIRQ";
+  else if (axp.isVUBSSessionEndIRQ())
+    irq_name = "isVUBSSessionEndIRQ";
+  else if (axp.isLowVoltageLevel1IRQ())
+    irq_name = "isLowVoltageLevel1IRQ";
+  else if (axp.isLowVoltageLevel2IRQ())
+    irq_name = "isLowVoltageLevel2IRQ";
+  else if (axp.isTimerTimeoutIRQ())
+    irq_name = "isTimerTimeoutIRQ";
+  else if (axp.isPEKRisingEdgeIRQ())
+    irq_name = "isPEKRisingEdgeIRQ";
+  else if (axp.isPEKFallingEdgeIRQ())
+    irq_name = "isPEKFallingEdgeIRQ";
+  else if (axp.isGPIO3InputEdgeTriggerIRQ())
+    irq_name = "isGPIO3InputEdgeTriggerIRQ";
+  else if (axp.isGPIO2InputEdgeTriggerIRQ())
+    irq_name = "isGPIO2InputEdgeTriggerIRQ";
+  else if (axp.isGPIO1InputEdgeTriggerIRQ())
+    irq_name = "isGPIO1InputEdgeTriggerIRQ";
+  else if (axp.isGPIO0InputEdgeTriggerIRQ())
+    irq_name = "isGPIO0InputEdgeTriggerIRQ";
+
+  return irq_name;
+}
+
 void loop() {
   gps_loop();
   ttn_loop();
@@ -520,23 +603,14 @@ void loop() {
 
   // Short press on power button (near USB) also causes PMIC IRQ
   if (axp192_found && pmu_irq) {
-    const char *irq_name = "MysteryIRQ";
+    const char *irq_name;
     pmu_irq = false;
     axp.readIRQ();
-    if (axp.isChargingIRQ()) {
-       irq_name = "ChargingIRQ";
-    }
-    if (axp.isVbusRemoveIRQ()) {
-      irq_name = "VbusRemoveIRQ";
-    }
-    if (axp.isPEKShortPressIRQ()) {
-      irq_name = "PEKShortPressIRQ";
-    }
+    irq_name = find_irq_name();
+    axp.clearIRQ();
+
     snprintf(buffer, sizeof(buffer), "%s\n", irq_name);
     screen_print(buffer);
-
-    // digitalWrite(2, !digitalRead(2));  No idea what this does
-    axp.clearIRQ();
   }
 
   static uint32_t pressTime = 0; // what tick should we call this press long enough
