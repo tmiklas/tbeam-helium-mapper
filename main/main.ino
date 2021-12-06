@@ -513,80 +513,43 @@ const char *find_irq_name (void)
 {
   const char *irq_name = "MysteryIRQ";
 
-  if (axp.isAcinOverVoltageIRQ())
-    irq_name = "isAcinOverVoltageIRQ";
-  else if (axp.isAcinPlugInIRQ())
-    irq_name = "isAcinPlugInIRQ";
-  else if (axp.isAcinRemoveIRQ())
-    irq_name = "isAcinRemoveIRQ";
-  else if (axp.isVbusOverVoltageIRQ())
-    irq_name = "isVbusOverVoltageIRQ";
-  else if (axp.isVbusPlugInIRQ())
-    irq_name = "isVbusPlugInIRQ";
-  else if (axp.isVbusRemoveIRQ())
-    irq_name = "isVbusRemoveIRQ";
-  else if (axp.isVbusLowVHOLDIRQ())
-    irq_name = "isVbusLowVHOLDIRQ";
-  else if (axp.isBattPlugInIRQ())
-    irq_name = "isBattPlugInIRQ";
-  else if (axp.isBattRemoveIRQ())
-    irq_name = "isBattRemoveIRQ";
-  else if (axp.isBattEnterActivateIRQ())
-    irq_name = "isBattEnterActivateIRQ";
-  else if (axp.isBattExitActivateIRQ())
-    irq_name = "isBattExitActivateIRQ";
-  else if (axp.isChargingIRQ())
-    irq_name = "isChargingIRQ";
-  else if (axp.isChargingDoneIRQ())
-    irq_name = "isChargingDoneIRQ";
-  else if (axp.isBattTempLowIRQ())
-    irq_name = "isBattTempLowIRQ";
-  else if (axp.isBattTempHighIRQ())
-    irq_name = "isBattTempHighIRQ";
-  else if (axp.isChipOvertemperatureIRQ())
-    irq_name = "isChipOvertemperatureIRQ";
-  else if (axp.isChargingCurrentLessIRQ())
-    irq_name = "isChargingCurrentLessIRQ";
-  else if (axp.isDC2VoltageLessIRQ())
-    irq_name = "isDC2VoltageLessIRQ";
-  else if (axp.isDC3VoltageLessIRQ())
-    irq_name = "isDC3VoltageLessIRQ";
-  else if (axp.isLDO3VoltageLessIRQ())
-    irq_name = "isLDO3VoltageLessIRQ";
-  else if (axp.isPEKShortPressIRQ())
-    irq_name = "isPEKShortPressIRQ";
-  else if (axp.isPEKLongtPressIRQ())
-    irq_name = "isPEKLongtPressIRQ";
-  else if (axp.isNOEPowerOnIRQ())
-    irq_name = "isNOEPowerOnIRQ";
-  else if (axp.isNOEPowerDownIRQ())
-    irq_name = "isNOEPowerDownIRQ";
-  else if (axp.isVBUSEffectiveIRQ())
-    irq_name = "isVBUSEffectiveIRQ";
-  else if (axp.isVBUSInvalidIRQ())
-    irq_name = "isVBUSInvalidIRQ";
-  else if (axp.isVUBSSessionIRQ())
-    irq_name = "isVUBSSessionIRQ";
-  else if (axp.isVUBSSessionEndIRQ())
-    irq_name = "isVUBSSessionEndIRQ";
-  else if (axp.isLowVoltageLevel1IRQ())
-    irq_name = "isLowVoltageLevel1IRQ";
-  else if (axp.isLowVoltageLevel2IRQ())
-    irq_name = "isLowVoltageLevel2IRQ";
-  else if (axp.isTimerTimeoutIRQ())
-    irq_name = "isTimerTimeoutIRQ";
-  else if (axp.isPEKRisingEdgeIRQ())
-    irq_name = "isPEKRisingEdgeIRQ";
-  else if (axp.isPEKFallingEdgeIRQ())
-    irq_name = "isPEKFallingEdgeIRQ";
-  else if (axp.isGPIO3InputEdgeTriggerIRQ())
-    irq_name = "isGPIO3InputEdgeTriggerIRQ";
-  else if (axp.isGPIO2InputEdgeTriggerIRQ())
-    irq_name = "isGPIO2InputEdgeTriggerIRQ";
-  else if (axp.isGPIO1InputEdgeTriggerIRQ())
-    irq_name = "isGPIO1InputEdgeTriggerIRQ";
-  else if (axp.isGPIO0InputEdgeTriggerIRQ())
-    irq_name = "isGPIO0InputEdgeTriggerIRQ";
+  if (axp.isAcinOverVoltageIRQ()) irq_name = "AcinOverVoltage";
+  else if (axp.isAcinPlugInIRQ()) irq_name = "AcinPlugIn";
+  else if (axp.isAcinRemoveIRQ()) irq_name = "AcinRemove";
+  else if (axp.isVbusOverVoltageIRQ()) irq_name = "VbusOverVoltage";
+  else if (axp.isVbusPlugInIRQ()) irq_name = "VbusPlugIn";
+  else if (axp.isVbusRemoveIRQ()) irq_name = "VbusRemove";
+  else if (axp.isVbusLowVHOLDIRQ()) irq_name = "VbusLowVHOLD";
+  else if (axp.isBattPlugInIRQ()) irq_name = "BattPlugIn";
+  else if (axp.isBattRemoveIRQ()) irq_name = "BattRemove";
+  else if (axp.isBattEnterActivateIRQ()) irq_name = "BattEnterActivate";
+  else if (axp.isBattExitActivateIRQ()) irq_name = "BattExitActivate";
+  else if (axp.isChargingIRQ()) irq_name = "Charging";
+  else if (axp.isChargingDoneIRQ()) irq_name = "ChargingDone";
+  else if (axp.isBattTempLowIRQ()) irq_name = "BattTempLow";
+  else if (axp.isBattTempHighIRQ()) irq_name = "BattTempHigh";
+  else if (axp.isChipOvertemperatureIRQ()) irq_name = "ChipOvertemperature";
+  else if (axp.isChargingCurrentLessIRQ()) irq_name = "ChargingCurrentLess";
+  else if (axp.isDC2VoltageLessIRQ()) irq_name = "DC2VoltageLess";
+  else if (axp.isDC3VoltageLessIRQ()) irq_name = "DC3VoltageLess";
+  else if (axp.isLDO3VoltageLessIRQ()) irq_name = "LDO3VoltageLess";
+  else if (axp.isPEKShortPressIRQ()) irq_name = "PEKShortPress";
+  else if (axp.isPEKLongtPressIRQ()) irq_name = "PEKLongtPress";
+  else if (axp.isNOEPowerOnIRQ()) irq_name = "NOEPowerOn";
+  else if (axp.isNOEPowerDownIRQ()) irq_name = "NOEPowerDown";
+  else if (axp.isVBUSEffectiveIRQ()) irq_name = "VBUSEffective";
+  else if (axp.isVBUSInvalidIRQ()) irq_name = "VBUSInvalid";
+  else if (axp.isVUBSSessionIRQ()) irq_name = "VUBSSession";
+  else if (axp.isVUBSSessionEndIRQ()) irq_name = "VUBSSessionEnd";
+  else if (axp.isLowVoltageLevel1IRQ()) irq_name = "LowVoltageLevel1";
+  else if (axp.isLowVoltageLevel2IRQ()) irq_name = "LowVoltageLevel2";
+  else if (axp.isTimerTimeoutIRQ()) irq_name = "TimerTimeout";
+  else if (axp.isPEKRisingEdgeIRQ()) irq_name = "PEKRisingEdge";
+  else if (axp.isPEKFallingEdgeIRQ()) irq_name = "PEKFallingEdge";
+  else if (axp.isGPIO3InputEdgeTriggerIRQ()) irq_name = "GPIO3InputEdgeTrigger";
+  else if (axp.isGPIO2InputEdgeTriggerIRQ()) irq_name = "GPIO2InputEdgeTrigger";
+  else if (axp.isGPIO1InputEdgeTriggerIRQ()) irq_name = "GPIO1InputEdgeTrigger";
+  else if (axp.isGPIO0InputEdgeTriggerIRQ()) irq_name = "GPIO0InputEdgeTrigger";
 
   return irq_name;
 }
