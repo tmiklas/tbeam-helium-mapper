@@ -267,9 +267,9 @@ void callback(uint8_t message) {
   }
   if (EV_JOINING == message) {
     if (ttn_joined) {
-      screen_print("Helium joining...\n");
-    } else {
       screen_print("Joined Helium!\n");
+    } else {
+      screen_print("Joining Helium...\n");
     }
   }
   if (EV_JOIN_FAILED == message) screen_print("Helium join failed\n");
