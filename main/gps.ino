@@ -82,12 +82,12 @@ void buildPacket(uint8_t txBuffer[11]) {
   sats = _gps.satellites.value();
   // hdopGps = _gps.hdop.value() / 10;
 
-  sprintf(t, "Lat: %f", _gps.location.lat());
-  Serial.println(t);
-  sprintf(t, "Lng: %f", _gps.location.lng());
-  Serial.println(t);
-  sprintf(t, "Alt: %f", _gps.altitude.meters());
-  Serial.println(t);
+  sprintf(t, "Lat: %f, ", _gps.location.lat());
+  Serial.print(t);
+  sprintf(t, "Lng: %f, ", _gps.location.lng());
+  Serial.print(t);
+  sprintf(t, "Alt: %f, ", _gps.altitude.meters());
+  Serial.print(t);
 //  sprintf(t, "Hdop: %d", hdopGps);
 //  Serial.println(t);
   sprintf(t, "Sats: %d", sats);

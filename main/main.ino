@@ -38,10 +38,12 @@
 
 #include <Arduino.h>
 #include "configuration.h"
-#include "rom/rtc.h"
 #include <TinyGPS++.h>
 #include <Wire.h>
 #include <axp20x.h>
+
+// Defined in ttn.ino
+void ttn_register(void (*callback)(uint8_t message));
 
 bool          justSendNow             = true; // Start by sending
 unsigned long int  last_send_millis        = 0;
@@ -492,16 +494,17 @@ void update_activity()
 /*
   if (bat_volts > BATTERY_HI_VOLTAGE)
     tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
-  else */
+  else 
+  */
   unsigned long int now_interval;
-  if (millis() - last_moved_millis > REST_WAIT) 
+  if (millis() - last_moved_millis > REST_WAIT * 1000) 
     now_interval = REST_TX_INTERVAL * 1000;
   else
     now_interval = STATIONARY_TX_INTERVAL * 1000;
   if (now_interval != tx_interval_ms) {
     tx_interval_ms = now_interval;
-    snprintf(buffer, sizeof(buffer), "Interval: %lu\n", now_interval / 1000);
-    screen_print(buffer);
+//    snprintf(buffer, sizeof(buffer), "Interval: %lus\n", now_interval / 1000);
+//    screen_print(buffer);
   }
 }
 

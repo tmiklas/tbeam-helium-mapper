@@ -26,7 +26,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <Arduino.h>
 #include <lmic.h>
-void ttn_register(void (*callback)(uint8_t message));
 
 // -----------------------------------------------------------------------------
 // Version
@@ -64,8 +63,8 @@ void ttn_register(void (*callback)(uint8_t message));
 #define LOGO_DELAY              2000            // Time to show logo on first boot (ms)
 
 #define MIN_DIST                 50.0           // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
-#define STATIONARY_TX_INTERVAL   60             // If stationary, the LoRa frame will still be sent once every N seconds
-#define REST_WAIT                (30 * 60)      // If we haven't moved in this many seconds, send slower
+#define STATIONARY_TX_INTERVAL   ( 1 * 60)      // If no minimum movement, the LoRa frame will still be sent once every N seconds
+#define REST_WAIT                (30 * 60)      // If we still haven't moved in this many seconds, send even slower
 #define REST_TX_INTERVAL         ( 5 * 60)      // Slow resting packet frequency in seconds
 
 //#define BATTERY_HI_VOLTAGE      4.0             // Above this voltage, send faster updates even while stationary
