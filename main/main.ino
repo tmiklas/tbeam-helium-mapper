@@ -45,6 +45,7 @@
 
 bool          justSendNow             = true; // Start by sending
 unsigned long int  last_send_millis        = 0;
+unsigned long int  last_moved_millis        = 0;
 float         last_send_lat           = 0;
 float         last_send_lon           = 0;
 float         min_dist_moved          = MIN_DIST;
@@ -76,6 +77,8 @@ static uint8_t txBuffer[11] = {0x03, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0
 RTC_DATA_ATTR int bootCount = 0;
 esp_sleep_source_t wakeCause; // the reason we booted this time
 
+char buffer[40]; // Screen buffer
+
 // -----------------------------------------------------------------------------
 // Application
 // -----------------------------------------------------------------------------
@@ -90,7 +93,6 @@ unsigned long int tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
 
 bool trySend()
 {
-  char buffer[40];
   if (gps_hdop() <= 0 || gps_hdop() > 50 
       || gps_latitude() == 0.0                 // Not fair to the whole equator
       || gps_latitude() > 90 || gps_latitude() < -90 
@@ -129,6 +131,7 @@ bool trySend()
   else if (dist_moved > min_dist_moved)
   {
     Serial.println("** MOVING");
+    last_moved_millis = millis();
     send_now = true;
   }
   else if (millis() - last_send_millis > tx_interval_ms)
@@ -145,6 +148,7 @@ bool trySend()
   if (send_now)
   {
     //snprintf(buffer, sizeof(buffer), "Moved %4.1fm\n", dist_moved);
+    // The first distance is crazy.. don't put it on screen.
     if (dist_moved < 1000000) {
       snprintf(buffer, sizeof(buffer), "%lus %.0fm ", (millis()-last_send_millis)/1000, dist_moved);
       screen_print(buffer);
@@ -215,7 +219,6 @@ void update_status() {
 
   if (0)
   {
-    char buffer[30];
     snprintf(buffer, sizeof(buffer), "%.2fv %.1fmA\n", batt_volts, charge_ma - discharge_ma);
     Serial.println(buffer);
   }
@@ -246,7 +249,6 @@ void update_status() {
 void callback(uint8_t message) {
 #if 0
   {
-    char buffer[20];
     snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
     screen_print(buffer);
   }
@@ -283,7 +285,6 @@ void callback(uint8_t message) {
     uint8_t data[len];
     ttn_response(data, len);
 
-    char buffer[6];
     for (uint8_t i = 0; i < len; i++) {
       snprintf(buffer, sizeof(buffer), "%02X", data[i]);
       screen_print(buffer);
@@ -490,12 +491,20 @@ void update_activity()
     // Does not return
   }
 
+/*
   if (bat_volts > BATTERY_HI_VOLTAGE)
     tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
-  else if (millis() - last_send_millis > REST_WAIT) 
-    tx_interval_ms = REST_TX_INTERVAL * 1000;
+  else */
+  unsigned long int now_interval;
+  if (millis() - last_moved_millis > REST_WAIT) 
+    now_interval = REST_TX_INTERVAL * 1000;
   else
-    tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
+    now_interval = STATIONARY_TX_INTERVAL * 1000;
+  if (now_interval != tx_interval_ms) {
+    tx_interval_ms = now_interval;
+    snprintf(buffer, sizeof(buffer), "Interval: %lu\n", now_interval / 1000);
+    screen_print(buffer);
+  }
 }
 
 void loop() {
@@ -510,7 +519,7 @@ void loop() {
 
   // Short press on power button (near USB) also causes PMIC IRQ
   if (axp192_found && pmu_irq) {
-    const char *irq_name = "Unrecognized";
+    const char *irq_name = "MysteryIRQ";
     pmu_irq = false;
     axp.readIRQ();
     if (axp.isChargingIRQ()) {
@@ -522,7 +531,6 @@ void loop() {
     if (axp.isPEKShortPressIRQ()) {
       irq_name = "PEKShortPressIRQ";
     }
-    char buffer[40];
     snprintf(buffer, sizeof(buffer), "%s\n", irq_name);
     screen_print(buffer);
 
