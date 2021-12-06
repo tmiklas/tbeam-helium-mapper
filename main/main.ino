@@ -145,7 +145,7 @@ bool trySend()
     send_now = false;
   }
 
-  if (send_now)
+  if (send_now && LMIC_queryTxReady())
   {
     //snprintf(buffer, sizeof(buffer), "Moved %4.1fm\n", dist_moved);
     // The first distance is crazy.. don't put it on screen.
@@ -169,9 +169,7 @@ bool trySend()
     last_send_lat = gps_latitude();
     last_send_lon = gps_longitude();
     return true;
-  }
-  else
-  {
+  } else {
     // snprintf(buffer, sizeof(buffer), "Still: %4.1fm\n", dist_moved);
     // screen_print(buffer);
     return false;

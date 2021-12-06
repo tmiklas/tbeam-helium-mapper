@@ -33,7 +33,7 @@ void ttn_register(void (*callback)(uint8_t message));
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1.31 MaxP"
+#define APP_VERSION             "1.32 MaxP"
 
 // -----------------------------------------------------------------------------
 // Configuration
