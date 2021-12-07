@@ -9,12 +9,14 @@ parser.add_argument('--cutoffvolts', '-c', type=float, help='Low Voltage Power O
 args = parser.parse_args()
 
 distance = 0
-if args.distance and rgs.distance > 0 and args.distance < 0xFFFF:
+if args.distance and args.distance > 0 and args.distance < 0xFFFF:
     distance = args.distance
 
 time_interval = 0
-if args.time and args.time > 0 and args.time < 0xFFFF:
+if args.time and args.time > 0 and args.time <= 0xFFFF:
     time_interval = args.time
+if args.time and args.time == -1:
+    time_interval = 0xFFFF
 
 cutoffvolts = 2.0 # Not a valid value, zero
 if args.cutoffvolts and args.cutoffvolts >= 2.1 and args.cutoffvolts < 4.56:
