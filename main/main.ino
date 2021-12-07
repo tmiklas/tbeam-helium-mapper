@@ -46,15 +46,17 @@
 void ttn_register(void (*callback)(uint8_t message));
 
 bool          justSendNow             = true; // Start by sending
-unsigned long int  last_send_millis        = 0;
-unsigned long int  last_moved_millis        = 0;
+unsigned long int  last_send_millis   = 0;
+unsigned long int  last_moved_millis  = 0;
 float         last_send_lat           = 0;
 float         last_send_lon           = 0;
-float         min_dist_moved          = MIN_DIST;
 float         dist_moved              = 0;
 
-// do we want to auto-scale transmit window size?
-bool autoScaleTX = false;
+/* Defaults that can be overwritten by downlink messages */
+unsigned long int tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
+boolean freeze_tx_interval_ms = false;
+float battery_low_voltage = BATTERY_LOW_VOLTAGE;
+float min_dist_moved = MIN_DIST;
 
 AXP20X_Class axp;
 bool pmu_irq = false;
@@ -64,6 +66,7 @@ bool ssd1306_found = false;
 bool axp192_found = false;
 
 bool packetSent, packetQueued;
+bool isJoined = false;
 
 #if defined(PAYLOAD_USE_FULL)
 // includes number of satellites and accuracy
@@ -91,7 +94,6 @@ void buildPacket(uint8_t txBuffer[]); // needed for platformio
    If we have a valid position send it to the server.
    @return true if we decided to send.
 */
-unsigned long int tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
 
 bool trySend()
 {
@@ -103,6 +105,9 @@ bool trySend()
       || gps_altitude() == 0.0 // Not fair to the ocean
   )
     return false; // Rejected as bogus GPS reading.
+
+  if (!isJoined)
+    return false;
 
   // distance from last transmitted location
   float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, gps_latitude(), gps_longitude());
@@ -247,7 +252,7 @@ void update_status() {
 
 
 void callback(uint8_t message) {
-#if 0
+#if 1
   {
     snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
     screen_print(buffer);
@@ -255,6 +260,7 @@ void callback(uint8_t message) {
 #endif
   if (EV_JOIN_TXCOMPLETE == message) Serial.println("# JOIN_TXCOMPLETE");
   if (EV_TXCOMPLETE == message) Serial.println("# TXCOMPLETE");
+  if (EV_RXCOMPLETE == message) Serial.println("# RXCOMPLETE");
   if (EV_RXSTART == message) Serial.println("# RXSTART");
   if (EV_TXCANCELED == message) Serial.println("# TXCANCELED");
   if (EV_TXSTART == message) Serial.println("# TXSTART");
@@ -268,6 +274,9 @@ void callback(uint8_t message) {
   if (EV_PENDING == message) Serial.println("# PENDING");
   if (EV_QUEUED == message) Serial.println("# QUEUED");
 
+  if (EV_JOINED == message)
+    isJoined = true;
+
   if (EV_TXSTART == message) {
     screen_print("Tx.. ");
   }
@@ -278,21 +287,50 @@ void callback(uint8_t message) {
     packetSent = true;
   }
 
-  if (EV_RESPONSE == message) {
-    screen_print("[Helium] Response: ");
+  if (EV_RXCOMPLETE == message) {
+    screen_print("Downlink: ");
 
     size_t len = ttn_response_len();
     uint8_t data[len];
     ttn_response(data, len);
-
+    
     for (uint8_t i = 0; i < len; i++) {
       snprintf(buffer, sizeof(buffer), "%02X", data[i]);
       screen_print(buffer);
     }
     screen_print("\n");
+
+    /*
+     * Downlink format:
+     * 2 Bytes: Minimum Distance (1 to 65535) meters, or 0 no-change
+     * 2 Bytes: Minimum Time (1 to 65535) seconds (18.2 hours) between pings, or 0 no-change
+     * 1 Byte:  Battery voltage (2.0 to 4.5) for auto-shutoff, or 0 no-change
+     */ 
+    if (len == 5) {
+      snprintf(buffer, sizeof(buffer), "(no changes)\n");
+
+      float new_distance = (float)(data[0] << 8 | data[1]);
+      if (new_distance > 0.0) {
+        min_dist_moved = new_distance;
+        snprintf(buffer, sizeof(buffer), "New Dist: %.0fm\n", new_distance);
+      }
+
+      unsigned long int new_interval = data[2] << 8 | data[3];
+      if (new_interval) {
+        tx_interval_ms = new_interval * 1000;
+        freeze_tx_interval_ms = true;
+        snprintf(buffer, sizeof(buffer), "New Time: %.0lum\n", new_interval);
+      }
+
+      float new_low_voltage = data[4] / 2.56 + 2.0;
+      if (new_low_voltage) {
+        battery_low_voltage = new_low_voltage;
+        snprintf(buffer, sizeof(buffer), "New LowBat: %.2fm\n", new_low_voltage);
+      }
+      screen_print(buffer);
+    }
   }
 }
-
 
 void scanI2Cdevice(void)
 {
@@ -481,7 +519,7 @@ void update_activity()
   float charge_ma = axp.getBattChargeCurrent();
   // float discharge_ma = axp.getBatChargeCurrent();
 
-  if (axp.isBatteryConnect() && bat_volts < BATTERY_LOW_VOLTAGE && charge_ma < 99.0)
+  if (axp.isBatteryConnect() && bat_volts < battery_low_voltage && charge_ma < 99.0)
   {
     Serial.println("Low Battery OFF");
     screen_print("Low Battery OFF\n");
@@ -496,15 +534,15 @@ void update_activity()
     tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
   else 
   */
-  unsigned long int now_interval;
-  if (millis() - last_moved_millis > REST_WAIT * 1000) 
-    now_interval = REST_TX_INTERVAL * 1000;
-  else
-    now_interval = STATIONARY_TX_INTERVAL * 1000;
-  if (now_interval != tx_interval_ms) {
-    tx_interval_ms = now_interval;
-//    snprintf(buffer, sizeof(buffer), "Interval: %lus\n", now_interval / 1000);
-//    screen_print(buffer);
+  if (!freeze_tx_interval_ms) 
+  {
+    unsigned long int now_interval;
+    if (millis() - last_moved_millis > REST_WAIT * 1000) 
+      now_interval = REST_TX_INTERVAL * 1000;
+    else
+      now_interval = STATIONARY_TX_INTERVAL * 1000;
+    if (now_interval != tx_interval_ms)
+      tx_interval_ms = now_interval;
   }
 }
 
