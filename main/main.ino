@@ -308,15 +308,17 @@ void callback(uint8_t message)
     snprintf(buffer, sizeof(buffer), "Rx: %d on P%d\n", len, port);
     screen_print(buffer);
 
-    Serial.print("Downlink: ");
+    Serial.print("Downlink on port:");
+    printHex2(port);
+    Serial.print(" = ");
     for (int i = 0; i < len; i++)
         printHex2(data[i]);
     Serial.println();
 
     /*
-     * Downlink format:
+     * Downlink format: FPort 1
      * 2 Bytes: Minimum Distance (1 to 65535) meters, or 0 no-change
-     * 2 Bytes: Minimum Time (1 to 65535) seconds (18.2 hours) between pings, or 0 no-change
+     * 2 Bytes: Minimum Time (1 to 65535) seconds (18.2 hours) between pings, or 0 no-change, or 0xFFFF to use default
      * 1 Byte:  Battery voltage (2.0 to 4.5) for auto-shutoff, or 0 no-change
      */ 
     if (port == 1 && len == 5) {
@@ -341,9 +343,9 @@ void callback(uint8_t message)
       }
 
       if (data[4]) {
-        float new_low_voltage = data[4] / 2.56 + 2.0;
+        float new_low_voltage = data[4] / 100.00 + 2.00;
         battery_low_voltage = new_low_voltage;
-        snprintf(buffer, sizeof(buffer), "New LowBat: %.2fm\n", new_low_voltage);
+        snprintf(buffer, sizeof(buffer), "New LowBat: %.2fv\n", new_low_voltage);
         screen_print(buffer);
       }
     }
