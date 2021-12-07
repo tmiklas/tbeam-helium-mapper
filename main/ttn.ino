@@ -130,81 +130,72 @@ void initDevEUI() {
 
 // LMIC library will call this method when an event is fired
 void onEvent(ev_t event) {
-  // Some special-case event handling
-  switch (event) {
-  case EV_JOINED: {
-#ifdef SINGLE_CHANNEL_GATEWAY
-    forceTxSingleChannelDr();
-#endif
+    switch(event) {
+    case EV_JOINED: {
+        #ifdef SINGLE_CHANNEL_GATEWAY
+        forceTxSingleChannelDr();
+        #endif
 
-    // Disable link check validation (automatically enabled
-    // during join, but because slow data rates change max TX
-    // size, we don't use it in this example.
-    if (!LORAWAN_ADR) {
-      LMIC_setLinkCheckMode(0); // Link check problematic if not using ADR.
-                                // Must be set after join
+       // Disable link check validation (automatically enabled
+       // during join, but because slow data rates change max TX
+       // size, we don't use it in this example.
+       if(!LORAWAN_ADR){
+            LMIC_setLinkCheckMode(0); // Link check problematic if not using ADR. Must be set after join
+       }
+
+       Serial.println(F("EV_JOINED"));
+
+        u4_t netid = 0;
+        devaddr_t devaddr = 0;
+        u1_t nwkKey[16];
+        u1_t artKey[16];
+        LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
+        Serial.print("netid: ");
+        Serial.println(netid, DEC);
+        Serial.print("devaddr: ");
+        Serial.println(devaddr, HEX);
+        Serial.print("AppSKey: ");
+        for (size_t i=0; i<sizeof(artKey); ++i) {
+            if (i != 0)
+                Serial.print("-");
+            printHex2(artKey[i]);
+        }
+        Serial.println("");
+        Serial.print("NwkSKey: ");
+        for (size_t i=0; i<sizeof(nwkKey); ++i) {
+            if (i != 0)
+                    Serial.print("-");
+            printHex2(nwkKey[i]);
+        }
+        Serial.println();
+
+        Preferences p;
+        if(p.begin("lora", false)) {
+            p.putUInt("netId", netid);
+            p.putUInt("devAddr", devaddr);
+            p.putBytes("nwkKey", nwkKey, sizeof(nwkKey));
+            p.putBytes("artKey", artKey, sizeof(artKey));
+            p.end();
+        }
+        break; }
+    case EV_TXCOMPLETE:
+//        Serial.println(F("EV_TXCOMPLETE"));
+        if (LMIC.txrxFlags & TXRX_ACK) {
+//           Serial.println(F("Received ack"));
+            _ttn_callback(EV_ACK);
+        }
+        if (LMIC.dataLen) {
+//            Serial.print(F("Data Received: "));
+//            Serial.write(LMIC.frame+LMIC.dataBeg, LMIC.dataLen);
+//            Serial.println();
+            _ttn_callback(EV_RESPONSE);
+        }
+        break;
+    default:
+        break;
     }
 
-    Serial.println(F("! EV_JOINED as:"));
-
-    u4_t netid = 0;
-    devaddr_t devaddr = 0;
-    u1_t nwkKey[16];
-    u1_t artKey[16];
-    LMIC_getSessionKeys(&netid, &devaddr, nwkKey, artKey);
-    Serial.print("netid: ");
-    Serial.println(netid, DEC);
-    Serial.print("devaddr: ");
-    Serial.println(devaddr, HEX);
-    Serial.print("AppSKey: ");
-    for (size_t i = 0; i < sizeof(artKey); ++i) {
-      if (i != 0)
-        Serial.print("-");
-      printHex2(artKey[i]);
-    }
-    Serial.println("");
-    Serial.print("NwkSKey: ");
-    for (size_t i = 0; i < sizeof(nwkKey); ++i) {
-      if (i != 0)
-        Serial.print("-");
-      printHex2(nwkKey[i]);
-    }
-    Serial.println();
-
-    Preferences p;
-    if (p.begin("lora", false)) {
-      p.putUInt("netId", netid);
-      p.putUInt("devAddr", devaddr);
-      p.putBytes("nwkKey", nwkKey, sizeof(nwkKey));
-      p.putBytes("artKey", artKey, sizeof(artKey));
-      p.end();
-    }
-    break;
-  }
-
-  case EV_TXCOMPLETE:
-    // Before sending the EV_TXCOMPLETE callback, send EV_ACK and EV_Response
-    // virtual events? Serial.println(F("! EV_TXCOMPLETE"));
-    if (LMIC.txrxFlags & TXRX_ACK) {
-      Serial.println(F("! Tx got ACK"));
-      _ttn_callback(EV_ACK);
-    }
-    if (LMIC.dataLen) {
-      Serial.print(F("! Tx got Response"));
-      Serial.write(LMIC.frame + LMIC.dataBeg, LMIC.dataLen);
-      Serial.println();
-      _ttn_callback(EV_RESPONSE);
-    }
-    break;
-
-  default:
-    break;
-  }
-  //            Serial.print(F("Data Received: "));
-  //            Serial.write(LMIC.frame+LMIC.dataBeg, LMIC.dataLen);
-  //            Serial.println();
-
-  // Send the original message callbacks
+    // Send message callbacks
   _ttn_callback(event);
 }
 
@@ -220,7 +211,9 @@ size_t ttn_response_len() {
     return LMIC.dataLen;
 }
 
-void ttn_response(uint8_t * buffer, size_t len) {
+void ttn_response(uint8_t * port, uint8_t * buffer, size_t len) {
+    if (port)
+        *port = LMIC.frame[LMIC.dataBeg - 1];
     for (uint8_t i = 0; i < LMIC.dataLen; i++) {
         buffer[i] = LMIC.frame[LMIC.dataBeg + i];
     }
@@ -377,7 +370,7 @@ void ttn_join() {
             LMIC_startJoining();
         }
         else {
-            Serial.println("Rejoining saved session");
+            Serial.println("Reusing saved session");
             LMIC_setSession(netId, devAddr, nwkKey, artKey);
 
             // Trigger a false joined

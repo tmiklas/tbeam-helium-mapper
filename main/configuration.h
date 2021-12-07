@@ -72,7 +72,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define LORAWAN_PORT            2               // Port the messages will be sent to -- must match console Decoder script!
 #define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message for ACK every N messages (0 means never, 1 means always)
-#define LORAWAN_SF              DR_SF7          // Spreading factor (recommended DR_SF7 for ttn network map purposes, DR_SF10 works for slow moving trackers)
+#define LORAWAN_SF              DR_SF10          // Spreading factor (recommended DR_SF7 for ttn network map purposes, DR_SF10 works for slow moving trackers)
 #define LORAWAN_ADR             0               // Enable ADR
 
 #define DEBUG_PORT              Serial          // Serial debug port

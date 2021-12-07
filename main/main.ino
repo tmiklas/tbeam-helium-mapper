@@ -251,8 +251,10 @@ void update_status() {
 }
 
 
-void callback(uint8_t message) {
-#if 1
+void callback(uint8_t message) 
+{
+  static boolean seen_joined = false, seen_joining = false;
+#if 0
   {
     snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
     screen_print(buffer);
@@ -274,31 +276,42 @@ void callback(uint8_t message) {
   if (EV_PENDING == message) Serial.println("# PENDING");
   if (EV_QUEUED == message) Serial.println("# QUEUED");
 
+
+  /* This is confusing because JOINED is sometimes spoofed and comes early */
   if (EV_JOINED == message)
+    seen_joined = true;
+  if (EV_JOINING == message)
+    seen_joining = true;
+  if (!isJoined && seen_joined && seen_joining)
+  {
     isJoined = true;
+    screen_print("Joined Helium!\n");
+  }
 
   if (EV_TXSTART == message) {
-    screen_print("Tx.. ");
+    screen_print("TX\n");
   }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
-    screen_print("sent.\n");
+//    screen_print("sent.\n");
     packetQueued = false;
     packetSent = true;
   }
 
-  if (EV_RXCOMPLETE == message) {
-    screen_print("Downlink: ");
+  if (EV_RXCOMPLETE == message || EV_RESPONSE == message) {
 
     size_t len = ttn_response_len();
     uint8_t data[len];
-    ttn_response(data, len);
-    
-    for (uint8_t i = 0; i < len; i++) {
-      snprintf(buffer, sizeof(buffer), "%02X", data[i]);
-      screen_print(buffer);
-    }
-    screen_print("\n");
+    uint8_t port;
+    ttn_response(&port, data, len);
+
+    snprintf(buffer, sizeof(buffer), "Rx: %d on P%d\n", len, port);
+    screen_print(buffer);
+
+    Serial.print("Downlink: ");
+    for (int i = 0; i < len; i++)
+        printHex2(data[i]);
+    Serial.println();
 
     /*
      * Downlink format:
@@ -306,28 +319,33 @@ void callback(uint8_t message) {
      * 2 Bytes: Minimum Time (1 to 65535) seconds (18.2 hours) between pings, or 0 no-change
      * 1 Byte:  Battery voltage (2.0 to 4.5) for auto-shutoff, or 0 no-change
      */ 
-    if (len == 5) {
-      snprintf(buffer, sizeof(buffer), "(no changes)\n");
-
+    if (port == 1 && len == 5) {
       float new_distance = (float)(data[0] << 8 | data[1]);
       if (new_distance > 0.0) {
         min_dist_moved = new_distance;
         snprintf(buffer, sizeof(buffer), "New Dist: %.0fm\n", new_distance);
+        screen_print(buffer);
       }
 
       unsigned long int new_interval = data[2] << 8 | data[3];
       if (new_interval) {
-        tx_interval_ms = new_interval * 1000;
-        freeze_tx_interval_ms = true;
-        snprintf(buffer, sizeof(buffer), "New Time: %.0lum\n", new_interval);
+        if (new_interval == 0xFFFF) {
+          freeze_tx_interval_ms = false;
+          tx_interval_ms = STATIONARY_TX_INTERVAL;
+        } else {
+          tx_interval_ms = new_interval * 1000;
+          freeze_tx_interval_ms = true;
+        }
+        snprintf(buffer, sizeof(buffer), "New Time: %.0lus\n", new_interval);
+        screen_print(buffer);
       }
 
-      float new_low_voltage = data[4] / 2.56 + 2.0;
-      if (new_low_voltage) {
+      if (data[4]) {
+        float new_low_voltage = data[4] / 2.56 + 2.0;
         battery_low_voltage = new_low_voltage;
         snprintf(buffer, sizeof(buffer), "New LowBat: %.2fm\n", new_low_voltage);
+        screen_print(buffer);
       }
-      screen_print(buffer);
     }
   }
 }
@@ -642,7 +660,7 @@ void loop() {
   if (trySend()) {
       // Good send
   } else {
-      // Nothing sent.  Rest
-      delay(100);
+      // Nothing sent. 
+      // Do NOT delay() here.. the LoRa receiver and join housekeeping also needs to run!
   }
 }
