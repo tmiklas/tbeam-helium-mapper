@@ -133,11 +133,14 @@ void screen_loop() {
         axp.readIRQ();
         if (axp.isChargingIRQ()) {
             baChStatus = "Charging";
+            screen_print("Charging");
         } else {
             baChStatus = "No Charging";
+            screen_print("Not Charging\n");
         }
         if (axp.isVbusRemoveIRQ()) {
             baChStatus = "No Charging";
+            screen_print("Charger disconnected\n");
         }
         Serial.println(baChStatus); //Prints charging status to screen
         digitalWrite(2, !digitalRead(2));

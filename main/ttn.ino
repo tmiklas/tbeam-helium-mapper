@@ -185,11 +185,18 @@ void onEvent(ev_t event) {
             p.putBytes("artKey", artKey, sizeof(artKey));
             p.end();
         }
+        // possibly not required, downlinks should work without this
+        // LMIC_setPingable(1);
         break; }
+    // Radio started transmitting
+    case EV_TXSTART:
+        Serial.println(F("* EVENT: RF Sending..."));
+        break;
+    // sending completed
     case EV_TXCOMPLETE:
         Serial.println(F("EV_TXCOMPLETE (inc. RX win. wait)"));
         if (LMIC.txrxFlags & TXRX_ACK) {
-            Serial.println(F("Received ack"));
+            Serial.println(F("*EVENT: Received ack"));
             _ttn_callback(EV_ACK);
         }
         if (LMIC.dataLen) {
@@ -199,6 +206,22 @@ void onEvent(ev_t event) {
             _ttn_callback(EV_RESPONSE);
         }
         break;
+    // data received
+    case EV_RXCOMPLETE:
+        Serial.println(F("*EVENT: EV_RXCOMPLETE"));
+        if (LMIC.dataLen) {
+            Serial.print(F("Data Received: "));
+            Serial.write(LMIC.frame+LMIC.dataBeg, LMIC.dataLen);
+            Serial.println();
+            _ttn_callback(EV_RESPONSE);
+        }
+        break;
+    // beacon found by scanning
+    // case EV_BEACON_FOUND:
+    // // send empty frame up to notify server of ping mode and interval!
+    //     LMIC_sendAlive();
+    //     Serial.println("*EVENT: BEACON found - sendAlive");
+    //     break;
     default:
         break;
     }
@@ -415,13 +438,20 @@ void ttn_send(uint8_t * data, uint8_t data_size, uint8_t port, bool confirmed){
 
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
+        Serial.println("* ttn_send: previous operation still in progress, aborting...");
+        screen_print("RF Busy - DISCARDED");
         _ttn_callback(EV_PENDING);
         return;
+
+        // Serial.println("* ttn_send: previous operation still in progress, discarding to send new one...");
+        // LMIC_clrTxData();
     }
 
     // Prepare upstream data transmission at the next possible time.
     // Parameters are port, data, length, confirmed
-    LMIC_setTxData2(port, data, data_size, confirmed ? 1 : 0);
+    int retCode = LMIC_setTxData2(port, data, data_size, confirmed ? 1 : 0);
+    // Serial.printf("* ttn_send: queued, return code %i", retCode);
+    // Serial.println("");
 
     _ttn_callback(EV_QUEUED);
     count++;

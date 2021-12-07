@@ -382,6 +382,25 @@ void axp192Init() {
     Serial.printf("LDO3: %s\n", axp.isLDO3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
+    Serial.println("----------------------------------------");
+    Serial.printf("AXP Temp: %.01fC\n", axp.getTemp());
+    Serial.print("VBUS status: ");
+    if (axp.isVBUSPlug()) {
+      Serial.println("CONNECTED");
+      Serial.printf("VBUS Volatage: %.02fV\n", axp.getVbusVoltage()/1000);
+      Serial.printf("VBUS Current:  %.02fmA\n", axp.getVbusCurrent());
+    }
+    Serial.print("BATT status: ");
+    if (axp.isBatteryConnect()) {
+      Serial.println("CONNECTED");
+      Serial.printf("BATT Voltage:  %.02fV\n", axp.getBattVoltage()/1000);
+      // Serial.printf("BATT Current:  %.02fmA\n", axp.());
+      if (axp.isChargeing()) {
+        Serial.printf("BATT charging current: %.02fmA\n", axp.getBattChargeCurrent());
+      } else {
+        Serial.printf("BATT discharging current: %.02fmA\n", axp.getBattDischargeCurrent());
+      }
+    }
 
     pinMode(PMU_IRQ, INPUT_PULLUP);
     attachInterrupt(PMU_IRQ, [] {
@@ -504,7 +523,18 @@ void loop() {
 
     // we just did a release
     wasPressed = false;
-    if (millis() > minPressMs + 1000) {
+    if (millis() > minPressMs + 5000) {  // 10+sec very long press to discard prefs
+      #ifndef PREFS_DISCARD
+            screen_print("Discarding prefs disabled\n");
+      #endif
+      #ifdef PREFS_DISCARD
+            screen_print("Discarding prefs!\n");
+            ttn_erase_prefs();
+            delay(5000); // Give some time to read the screen
+            ESP.restart();
+      #endif
+      
+    } else if (millis() > minPressMs + 1000) {
       // held long enough
       Serial.println("Long press!");
       if (autoScaleTX) {
@@ -523,15 +553,6 @@ void loop() {
         screen_print(buffer);        
         // screen_print("TX Scaling ON");
       }
-// #ifndef PREFS_DISCARD
-//       screen_print("Discarding prefs disabled\n");
-// #endif
-// #ifdef PREFS_DISCARD
-//       screen_print("Discarding prefs!\n");
-//       ttn_erase_prefs();
-//       delay(5000); // Give some time to read the screen
-//       ESP.restart();
-// #endif
 
     } else {
 
