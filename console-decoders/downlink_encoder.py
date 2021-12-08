@@ -3,7 +3,7 @@ import argparse
 import struct
 
 parser = argparse.ArgumentParser(description='Encode a downlink payload for a Helium mapper.')
-parser.add_argument('--distance', '-d', type=int, help='Map distance interval (kilometers)')
+parser.add_argument('--distance', '-d', type=int, help='Map distance interval (meters)')
 parser.add_argument('--time', '-t', type=int, help='Minimum time interval (seconds)')
 parser.add_argument('--cutoffvolts', '-c', type=float, help='Low Voltage Power Off (volts)')
 args = parser.parse_args()
