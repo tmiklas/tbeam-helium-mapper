@@ -32,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1.40 MaxP"
+#define APP_VERSION             "1.4.1 MaxP"
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -62,17 +62,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define LOGO_DELAY              2000            // Time to show logo on first boot (ms)
 
-#define MIN_DIST                 50.0           // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
-#define STATIONARY_TX_INTERVAL   ( 1 * 60)      // If no minimum movement, the LoRa frame will still be sent once every N seconds
-#define REST_WAIT                (30 * 60)      // If we still haven't moved in this many seconds, send even slower
-#define REST_TX_INTERVAL         ( 5 * 60)      // Slow resting packet frequency in seconds
+#define MIN_DIST                50.0           // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
+#define STATIONARY_TX_INTERVAL  ( 2 * 60)      // If no minimum movement, the LoRa frame will still be sent once every N seconds
+#define REST_WAIT               (30 * 60)      // If we still haven't moved in this many seconds, start sending even slower
+#define REST_TX_INTERVAL        (10 * 60)      // Slow resting packet frequency in seconds
 
-//#define BATTERY_HI_VOLTAGE      4.0             // Above this voltage, send faster updates even while stationary
 #define BATTERY_LOW_VOLTAGE     3.4             // Below this voltage, power off until charging
 
 #define LORAWAN_PORT            2               // Port the messages will be sent to -- must match console Decoder script!
 #define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message for ACK every N messages (0 means never, 1 means always)
-#define LORAWAN_SF              DR_SF10          // Spreading factor (recommended DR_SF7 for ttn network map purposes, DR_SF10 works for slow moving trackers)
+#define LORAWAN_SF              DR_SF7          // Spreading factor (recommended DR_SF7 for ttn network map purposes, DR_SF10 works for slow moving trackers)
 #define LORAWAN_ADR             0               // Enable ADR
 
 #define DEBUG_PORT              Serial          // Serial debug port
@@ -86,6 +85,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #else
 #define DEBUG_MSG(...)
 #endif
+
+// Verbose LoRa message callback reporting
+// #define DEBUG_LORA_MESSAGES
 
 // -----------------------------------------------------------------------------
 // Custom messages
