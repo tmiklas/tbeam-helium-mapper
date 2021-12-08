@@ -254,12 +254,11 @@ void update_status() {
 void callback(uint8_t message) 
 {
   static boolean seen_joined = false, seen_joining = false;
-#if 0
+#ifdef DEBUG_LORA_MESSAGES
   {
-    snprintf(buffer, sizeof(buffer), "MSG %d\n", message);
+    snprintf(buffer, sizeof(buffer), "## MSG %d\n", message);
     screen_print(buffer);
   }
-#endif
   if (EV_JOIN_TXCOMPLETE == message) Serial.println("# JOIN_TXCOMPLETE");
   if (EV_TXCOMPLETE == message) Serial.println("# TXCOMPLETE");
   if (EV_RXCOMPLETE == message) Serial.println("# RXCOMPLETE");
@@ -275,7 +274,7 @@ void callback(uint8_t message)
   if (EV_ACK == message) Serial.println("# ACK");
   if (EV_PENDING == message) Serial.println("# PENDING");
   if (EV_QUEUED == message) Serial.println("# QUEUED");
-
+#endif
 
   /* This is confusing because JOINED is sometimes spoofed and comes early */
   if (EV_JOINED == message)
