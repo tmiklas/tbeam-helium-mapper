@@ -108,9 +108,9 @@ options:
                         Low Voltage Power Off (volts)
  ```
 
-For example, you might want:
+For example, you might want to change the Mapper to 75 meter distance, and 600 second maximum time:
  ```
-%python downlink_encoder.py  -d 75 -t 600
+% python downlink_encoder.py -d 75 -t 600
 00 4B 02 58 00
 AEsCWAA=
 ```
