@@ -115,10 +115,23 @@ For example, you might want to change the Mapper to 75 meter distance, and 600 s
 AEsCWAA=
 ```
 That last output `AEsCWAA=` is the Base64-encoded payload, read to use.
-Paste that payload into the Helium Console under the Downlink panel for that device.  Leave the Port set to the default (1), and type as Base64.  Queue it for transmission, and the packet should appear in the queue list shown.
+
+#### Queue the Downlink packet for transmission
+Paste that payload into the Helium Console under the Downlink panel for that device.  Select a specific device, then the "Cloud Down-arrow" icon on the right ("Send a manual downlink to this device") to open the Downlink panel.
+
+Leave FPort set to the default (1), and type as default (Base64).
+Queue it for transmission using the Cloud down-arrow button, and the packet should appear in the Download Queue.
 
 When the mapper next reports (uplink), it will receive this directive and show the updates on-screen.
 To rush things along, you can cause an immediate Uplink (& Downlink) by pressing the middle button on the TTGO.
+
+#### Allowed values
+Setting any value to zero will leave the present value unchanged by the downlink.
+Maximum Distance interval can be 1 to 65,534 meters.  Time interval can be 1 to 65,534 seconds.  A special time interval of `-1` indicates that you want to remove any override and revert to the time interval in the software build configuration.
+
+Battery voltage cutoff can range from 2.0 to 4.5 volts.  If you set a cutoff higher than the present battery voltage, the Mapper will immediately power down.  When it reboots (on USB power present), the default battery cutoff will be restored from the software build.
+
+None of the Downlink values persist across power-off & on; the device always reverts to compiled-in values on startup.
 
 # The remainder of this README is copied from earlier authors that developed this codebase:
 
