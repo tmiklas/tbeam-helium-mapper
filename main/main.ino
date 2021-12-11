@@ -387,7 +387,7 @@ void axp192Init() {
     Serial.print("VBUS status: ");
     if (axp.isVBUSPlug()) {
       Serial.println("CONNECTED");
-      Serial.printf("VBUS Volatage: %.02fV\n", axp.getVbusVoltage()/1000);
+      Serial.printf("VBUS Voltage: %.02fV\n", axp.getVbusVoltage()/1000);
       Serial.printf("VBUS Current:  %.02fmA\n", axp.getVbusCurrent());
     }
     Serial.print("BATT status: ");
