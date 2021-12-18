@@ -127,19 +127,25 @@ bool trySend()
   screen_print(buffer);
   #endif
 
+  char now_justsend = ' ';
+  char now_distance = ' ';
+  char now_stationary = ' ';
   if (justSendNow)
   {
     justSendNow = false;
     Serial.println("** JUST_SEND_NOW");
+    now_justsend = '>';
   }
   else if (dist_moved > min_dist_moved)
   {
     Serial.println("** MOVING");
     last_moved_millis = millis();
+    now_distance = '!';
   }
   else if (millis() - last_send_millis > tx_interval_ms)
   {
     Serial.println("** STATIONARY_TX");
+    now_stationary = '!';
   }
   else
   {
@@ -150,9 +156,10 @@ bool trySend()
 
   // The first distance-moved is crazy, since has no origin.. don't put it on screen.
   if (dist_moved < 1000000) {
-    snprintf(buffer, sizeof(buffer), "%lus %.0fm (%lus %0.fm)", 
-            (millis()-last_send_millis)/1000, dist_moved,
-            tx_interval_ms/1000, min_dist_moved);
+    snprintf(buffer, sizeof(buffer), "%c%lus%c %.0fm%c",
+             now_justsend,
+             (millis() - last_send_millis) / 1000, now_stationary,
+             dist_moved, now_distance);
     screen_print(buffer);
   }
 
