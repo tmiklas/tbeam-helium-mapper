@@ -32,7 +32,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
 #define APP_NAME                "Helium TTGO"
-#define APP_VERSION             "1.4.1 MaxP"
+#define APP_VERSION             "1.4.3 MaxP"
 
 // -----------------------------------------------------------------------------
 // Configuration
