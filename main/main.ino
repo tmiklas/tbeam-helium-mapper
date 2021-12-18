@@ -97,20 +97,27 @@ void buildPacket(uint8_t txBuffer[]); // needed for platformio
 
 bool trySend()
 {
+  // Here we try to filter out bogus GPS readings.  It's not correct, and there should be a better indication from GPS that the fix is invalid
   if (gps_hdop() <= 0 || gps_hdop() > 50 
-      || gps_latitude() == 0.0                 // Not fair to the whole equator
+      || gps_latitude() == 0.0                // Not fair to the whole equator
       || gps_latitude() > 90 || gps_latitude() < -90 
-      || gps_longitude() == 0.0    // Not fair to King George
+      || gps_longitude() == 0.0               // Not fair to King George
       || gps_longitude() < -180 || gps_longitude() > 180 
-      || gps_altitude() == 0.0 // Not fair to the ocean
+      || gps_altitude() == 0.0                // Not fair to the ocean
   )
     return false; // Rejected as bogus GPS reading.
 
+  // Don't attempt to send or update until we join Helium
   if (!isJoined)
+    return false;
+
+  // LoRa is not ready for a new packet, maybe still sending the last one.
+  if (! LMIC_queryTxReady())
     return false;
 
   // distance from last transmitted location
   float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, gps_latitude(), gps_longitude());
+  
   #if 0
   snprintf(buffer, sizeof(buffer), "Lat: %10.6f\n", gps_latitude());
   screen_print(buffer);
@@ -120,67 +127,52 @@ bool trySend()
   screen_print(buffer);
   #endif
 
-  // check if we should transmit based on distance covered since last TX or are there other reasons:
-  // - TX when distance traveled above required threshold
-  // - TX when we are not tracking distance yet - happens on first trySend() after boot-up/reset - default is distance to (0,0) so more than usual 50m
-  // - TX when stationary (not met movement requirement) but waited enough TX cycles (report I'm still alive)
-  // - TX when USR button short presset to force send right now
-  // in all other cases sleep and return false
-
-  boolean send_now;
-  // rudimentary debug to serial port
   if (justSendNow)
   {
     justSendNow = false;
     Serial.println("** JUST_SEND_NOW");
-    send_now = true;
   }
   else if (dist_moved > min_dist_moved)
   {
     Serial.println("** MOVING");
     last_moved_millis = millis();
-    send_now = true;
   }
   else if (millis() - last_send_millis > tx_interval_ms)
   {
     Serial.println("** STATIONARY_TX");
-//    Serial.printf("last = %lu, interval = %lu\n", last_send_millis, tx_interval_ms);
-    send_now = true;
   }
   else
   {
-    send_now = false;
+    return false;   // Nothing to do, go home early
   }
 
-  if (send_now && LMIC_queryTxReady())
-  {
-    //snprintf(buffer, sizeof(buffer), "Moved %4.1fm\n", dist_moved);
-    // The first distance is crazy.. don't put it on screen.
-    if (dist_moved < 1000000) {
-      snprintf(buffer, sizeof(buffer), "%lus %.0fm ", (millis()-last_send_millis)/1000, dist_moved);
-      screen_print(buffer);
-    }
+  // SEND a Packet!
 
-    // prepare LoRa frame
-    buildPacket(txBuffer);
-
-    bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
-    if (confirmed)
-      Serial.println("ACK requested");
-
-    // send it!
-    packetQueued = true;
-    ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
-    packetSent = true;
-    last_send_millis = millis();
-    last_send_lat = gps_latitude();
-    last_send_lon = gps_longitude();
-    return true;
-  } else {
-    // snprintf(buffer, sizeof(buffer), "Still: %4.1fm\n", dist_moved);
-    // screen_print(buffer);
-    return false;
+  // The first distance-moved is crazy, since has no origin.. don't put it on screen.
+  if (dist_moved < 1000000) {
+    snprintf(buffer, sizeof(buffer), "%lus %.0fm (%lus %0.fm)", 
+            (millis()-last_send_millis)/1000, dist_moved,
+            tx_interval_ms/1000, min_dist_moved);
+    screen_print(buffer);
   }
+
+  // prepare the LoRa frame
+  buildPacket(txBuffer);
+
+  // Want an ACK on this one?
+  bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
+  if (confirmed)
+    Serial.println("ACK requested");
+
+  // send it!
+  packetQueued = true;
+  ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
+  packetSent = true;
+  last_send_millis = millis();
+  last_send_lat = gps_latitude();
+  last_send_lon = gps_longitude();
+
+  return true; // We did it!
 }
 
 void doDeepSleep(uint64_t msecToWake)
