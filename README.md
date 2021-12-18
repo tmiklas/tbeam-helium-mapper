@@ -13,6 +13,7 @@ Before Buliding and Uploading, you will probably want to inspect or change some 
   - `credentials.h`
 
 The comments and text below will guide you on what values to look out for.  By default, this builds is for the **US915** region.  Tune accordingly.
+You should choose your own AppKey value in `credentials.h`, either take the random one suggested by the Console Device entry, or make one up.
 
 ### Goals of Operation
 When your car is started, and USB Power appears, the Mapper will power on, acquire GPS, and continue mapping.
@@ -84,7 +85,55 @@ function Decoder(bytes, port) {
   return decoded;  
 }
 ```
-The remainder of this README is from earlier authors that developed this codebase:
+
+
+### Downlink
+This builds adds the option to reconfigure the Mapper remotely via Helium Downlink (network to device).  You can change the maximum Time Interval, Distance, and Battery Cut-off voltage remotely.
+
+#### Format your Downlink Payload.
+
+You can use the `downlink_encoder.py` Python script to convert your intent into a Base64 Payload.
+```
+% python downlink_encoder.py --help
+usage: downlink_encoder.py [-h] [--distance DISTANCE] [--time TIME] [--cutoffvolts CUTOFFVOLTS]
+
+Encode a downlink payload for a Helium mapper.
+
+options:
+  -h, --help            show this help message and exit
+  --distance DISTANCE, -d DISTANCE
+                        Map distance interval (meters)
+  --time TIME, -t TIME  Minimum time interval (seconds)
+  --cutoffvolts CUTOFFVOLTS, -c CUTOFFVOLTS
+                        Low Voltage Power Off (volts)
+ ```
+
+For example, you might want to change the Mapper to 75 meter distance, and 600 second maximum time:
+ ```
+% python downlink_encoder.py -d 75 -t 600
+00 4B 02 58 00
+AEsCWAA=
+```
+That last output `AEsCWAA=` is the Base64-encoded payload, read to use.
+
+#### Queue the Downlink packet for transmission
+Paste that payload into the Helium Console under the Downlink panel for that device.  Select a specific device, then the "Cloud Down-arrow" icon on the right ("Send a manual downlink to this device") to open the Downlink panel.
+
+Leave FPort set to the default (1), and type as default (Base64).
+Queue it for transmission using the Cloud down-arrow button, and the packet should appear in the Download Queue.
+
+When the mapper next reports (uplink), it will receive this directive and show the updates on-screen.
+To rush things along, you can cause an immediate Uplink (& Downlink) by pressing the middle button on the TTGO.
+
+#### Allowed values
+Setting any value to zero will leave the present value unchanged by the downlink.
+Maximum Distance interval can be 1 to 65,534 meters.  Time interval can be 1 to 65,534 seconds.  A special time interval of `-1` indicates that you want to remove any override and revert to the time interval in the software build configuration.
+
+Battery voltage cutoff can range from 2.0 to 4.5 volts.  If you set a cutoff higher than the present battery voltage, the Mapper will immediately power down.  When it reboots (on USB power present), the default battery cutoff will be restored from the software build.
+
+None of the Downlink values persist across power-off & on; the device always reverts to compiled-in values on startup.
+
+# The remainder of this README is copied from earlier authors that developed this codebase:
 
 -------------
 This well thought out README, original code, and the prior versions of code all have great people behind this and I have only sought to copy and revise it further for my own personal amusement and esthetics. 
