@@ -97,12 +97,16 @@ void buildPacket(uint8_t txBuffer[]); // needed for platformio
 
 bool trySend()
 {
+  float now_lat = gps_latitude();
+  float now_long = gps_longitude();
+  unsigned long int now_millis = millis();
+
   // Here we try to filter out bogus GPS readings.  It's not correct, and there should be a better indication from GPS that the fix is invalid
   if (gps_hdop() <= 0 || gps_hdop() > 50 
-      || gps_latitude() == 0.0                // Not fair to the whole equator
-      || gps_latitude() > 90 || gps_latitude() < -90 
-      || gps_longitude() == 0.0               // Not fair to King George
-      || gps_longitude() < -180 || gps_longitude() > 180 
+      || now_lat == 0.0                // Not fair to the whole equator
+      || now_lat > 90.0 || now_lat < -90.0
+      || now_long == 0.0               // Not fair to King George
+      || now_long < -180.0 || now_long > 180.0
       || gps_altitude() == 0.0                // Not fair to the ocean
   )
     return false; // Rejected as bogus GPS reading.
@@ -116,7 +120,7 @@ bool trySend()
     return false;
 
   // distance from last transmitted location
-  float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, gps_latitude(), gps_longitude());
+  float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, now_lat, now_long);
   
   #if 0
   snprintf(buffer, sizeof(buffer), "Lat: %10.6f\n", gps_latitude());
@@ -127,25 +131,25 @@ bool trySend()
   screen_print(buffer);
   #endif
 
-  char now_justsend = ' ';
-  char now_distance = ' ';
-  char now_stationary = ' ';
+  char because_justsend = ' ';
+  char because_distance = ' ';
+  char because_stationary = ' ';
   if (justSendNow)
   {
     justSendNow = false;
     Serial.println("** JUST_SEND_NOW");
-    now_justsend = '>';
+    because_justsend = '>';
   }
   else if (dist_moved > min_dist_moved)
   {
     Serial.println("** MOVING");
-    last_moved_millis = millis();
-    now_distance = '!';
+    last_moved_millis = now_millis;
+    because_distance = '!';
   }
-  else if (millis() - last_send_millis > tx_interval_ms)
+  else if (now_millis - last_send_millis > tx_interval_ms)
   {
     Serial.println("** STATIONARY_TX");
-    now_stationary = '!';
+    because_stationary = '!';
   }
   else
   {
@@ -157,9 +161,9 @@ bool trySend()
   // The first distance-moved is crazy, since has no origin.. don't put it on screen.
   if (dist_moved < 1000000) {
     snprintf(buffer, sizeof(buffer), "%c%lus%c %.0fm%c",
-             now_justsend,
-             (millis() - last_send_millis) / 1000, now_stationary,
-             dist_moved, now_distance);
+             because_justsend,
+             (now_millis - last_send_millis) / 1000, because_stationary,
+             dist_moved, because_distance);
     screen_print(buffer);
   }
 
@@ -175,9 +179,9 @@ bool trySend()
   packetQueued = true;
   ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
   packetSent = true;
-  last_send_millis = millis();
-  last_send_lat = gps_latitude();
-  last_send_lon = gps_longitude();
+  last_send_millis = now_millis;
+  last_send_lat = now_lat;
+  last_send_lon = now_long;
 
   return true; // We did it!
 }
