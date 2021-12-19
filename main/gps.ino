@@ -1,37 +1,15 @@
-/*
-
-  GPS module
-
-  Copyright (C) 2018 by Xose Pérez <xose dot perez at gmail dot com>
-
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*/
-
-#include <TinyGPS++.h>
+/* Revised to use UBlox native binary protocol to engage NMEA */
 #include "configuration.h"
+#include "gps.h"
+#include <Arduino.h>
+#include <HardwareSerial.h>
+#include <TinyGPS++.h>
+#include "SparkFun_Ublox_Arduino_Library_Series_6_7.h"
 
-uint32_t LatitudeBinary;
-uint32_t LongitudeBinary;
-uint16_t altitudeGps;
-uint8_t hdopGps;
-uint8_t sats;
-int speed;
-char t[32]; // used to sprintf for Serial output
+HardwareSerial gpsSerial(GPS_SERIAL_NUM);
 
+SFE_UBLOX_GPS myGNSS;
 TinyGPSPlus _gps;
-HardwareSerial _serial_gps(GPS_SERIAL_NUM);
 
 void gps_time(char * buffer, uint8_t size) {
     snprintf(buffer, size, "%02d:%02d:%02d", _gps.time.hour(), _gps.time.minute(), _gps.time.second());
@@ -60,115 +38,104 @@ float gps_hdop() {
 uint8_t gps_sats() {
     return _gps.satellites.value();
 }
-
-void gps_setup() {
-    _serial_gps.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-}
-
-static void gps_loop() {
-    while (_serial_gps.available()) {
-        _gps.encode(_serial_gps.read());
-    }
-}
-
-
-#if defined(PAYLOAD_USE_MAPPER)
-// Same format as CubeCell mappers
-void buildPacket(uint8_t txBuffer[11]) {
-  LatitudeBinary = ((_gps.location.lat() + 90) / 180.0) * 16777215;
-  LongitudeBinary = ((_gps.location.lng() + 180) / 360.0) * 16777215;
-  altitudeGps = (uint16_t)_gps.altitude.meters();
-  speed = (uint16_t)_gps.speed.kmph(); // convert from float
-  sats = _gps.satellites.value();
-  // hdopGps = _gps.hdop.value() / 10;
-
-  sprintf(t, "Lat: %f, ", _gps.location.lat());
-  Serial.print(t);
-  sprintf(t, "Long: %f, ", _gps.location.lng());
-  Serial.print(t);
-  sprintf(t, "Alt: %f, ", _gps.altitude.meters());
-  Serial.print(t);
-//  sprintf(t, "Hdop: %d", hdopGps);
-//  Serial.println(t);
-  sprintf(t, "Sats: %d", sats);
-  Serial.println(t);
-
-  txBuffer[0] = (LatitudeBinary >> 16) & 0xFF;
-  txBuffer[1] = (LatitudeBinary >> 8) & 0xFF;
-  txBuffer[2] = LatitudeBinary & 0xFF;
-  txBuffer[3] = (LongitudeBinary >> 16) & 0xFF;
-  txBuffer[4] = (LongitudeBinary >> 8) & 0xFF;
-  txBuffer[5] = LongitudeBinary & 0xFF;
-  txBuffer[6] = (altitudeGps >> 8) & 0xFF;
-  txBuffer[7] = altitudeGps & 0xFF;
-
-  txBuffer[8] = ((unsigned char *)(&speed))[0];
-
-  uint16_t batteryVoltage = ((float_t)((float_t)(axp.getBattVoltage()) / 10.0) + .5);
-  txBuffer[9] = (uint8_t)((batteryVoltage - 200) & 0xFF);
  
-  txBuffer[10] = sats & 0xFF;
+float gps_speed() {
+    return _gps.speed.kmph();
 }
 
-#elif defined(PAYLOAD_USE_FULL)
+boolean fresh_gps = false;
 
-    // More data than PAYLOAD_USE_CAYENNE
-    void buildPacket(uint8_t txBuffer[10])
-    {
-        LatitudeBinary = ((_gps.location.lat() + 90) / 180.0) * 16777215;
-        LongitudeBinary = ((_gps.location.lng() + 180) / 360.0) * 16777215;
-        altitudeGps = _gps.altitude.meters();
-        hdopGps = _gps.hdop.value() / 10;
-        sats = _gps.satellites.value();
+void gps_setup(void) {
+  gpsSerial.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  gpsSerial.setRxBufferSize(2048); // Default is 256
 
-        sprintf(t, "Lat: %f", _gps.location.lat());
-        Serial.println(t);
-        sprintf(t, "Lng: %f", _gps.location.lng());
-        Serial.println(t);
-        sprintf(t, "Alt: %d", altitudeGps);
-        Serial.println(t);
-        sprintf(t, "Hdop: %d", hdopGps);
-        Serial.println(t);
-        sprintf(t, "Sats: %d", sats);
-        Serial.println(t);
+  if (0) 
+    myGNSS.enableDebugging();
 
-        txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
-        txBuffer[1] = ( LatitudeBinary >> 8 ) & 0xFF;
-        txBuffer[2] = LatitudeBinary & 0xFF;
-        txBuffer[3] = ( LongitudeBinary >> 16 ) & 0xFF;
-        txBuffer[4] = ( LongitudeBinary >> 8 ) & 0xFF;
-        txBuffer[5] = LongitudeBinary & 0xFF;
-        txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
-        txBuffer[7] = altitudeGps & 0xFF;
+  bool changed_speed = false;
 
-        txBuffer[8] = hdopGps & 0xFF;
-        txBuffer[9] = sats & 0xFF;
+  // Check all the possible GPS bitrates to get in sync
+  do {
+    gpsSerial.updateBaudRate(GPS_BAUDRATE);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS connected.");
+      break;
     }
 
-#elif defined(PAYLOAD_USE_CAYENNE)
+    // Well, wasn't where we expected it
+    changed_speed = true;
 
-    // CAYENNE DF
-    void buildPacket(uint8_t txBuffer[11])
-    {
-        sprintf(t, "Lat: %f", _gps.location.lat());
-        Serial.println(t);
-        sprintf(t, "Lng: %f", _gps.location.lng());
-        Serial.println(t);        
-        sprintf(t, "Alt: %f", _gps.altitude.meters());
-        Serial.println(t);        
-        int32_t lat = _gps.location.lat() * 10000;
-        int32_t lon = _gps.location.lng() * 10000;
-        int32_t alt = _gps.altitude.meters() * 100;
-        
-        txBuffer[2] = lat >> 16;
-        txBuffer[3] = lat >> 8;
-        txBuffer[4] = lat;
-        txBuffer[5] = lon >> 16;
-        txBuffer[6] = lon >> 8;
-        txBuffer[7] = lon;
-        txBuffer[8] = alt >> 16;
-        txBuffer[9] = alt >> 8;
-        txBuffer[10] = alt;
+    Serial.println("Trying 115200...");
+    gpsSerial.updateBaudRate(115200);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 115200 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      continue;
     }
 
-#endif
+    Serial.println("Trying 9600...");
+    gpsSerial.updateBaudRate(9600);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 9600 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      continue;
+    }
+
+    Serial.println("Trying 38400...");
+    gpsSerial.updateBaudRate(38400);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 38400 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      continue;
+    }
+
+    Serial.println("Trying 57600...");
+    gpsSerial.updateBaudRate(57600);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 57600 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      continue;
+    }
+
+    Serial.println("Could not connect to GPS. Retrying all speeds...");
+  } while (1);
+
+  myGNSS.setUART1Output(COM_TYPE_NMEA); // Set the UART port to output UBX only
+  
+  if (0)
+    myGNSS.factoryReset();
+
+  myGNSS.setNavigationFrequency(1); // Produce one solution per second
+  
+  myGNSS.disableNMEAMessage(UBX_NMEA_DTM, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GAQ, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GBQ, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GBS, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GLL, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GLQ, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GNQ, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GNS, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GPQ, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GRS, COM_PORT_UART1);
+  // myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GST, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GSV, COM_PORT_UART1);
+  // myGNSS.disableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_TXT, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_VLW, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_ZDA, COM_PORT_UART1);
+
+  myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1); // For Speed
+  myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1); // For Time & Location
+
+  if (changed_speed)
+    myGNSS.saveConfiguration(); // Save the current settings to flash and BBR
+}
+
+void gps_loop(void) {
+    while (gpsSerial.available()) {
+        _gps.encode(gpsSerial.read());
+    }
+}
