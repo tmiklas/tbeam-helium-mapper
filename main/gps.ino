@@ -1,174 +1,232 @@
-/*
-
-  GPS module
-
-  Copyright (C) 2018 by Xose Pérez <xose dot perez at gmail dot com>
-
-  This program is free software: you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation, either version 3 of the License, or
-  (at your option) any later version.
-
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-  GNU General Public License for more details.
-
-  You should have received a copy of the GNU General Public License
-  along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-*/
-
-#include <TinyGPS++.h>
+/* Revised to use UBlox native binary protocol instead of NMEA */
 #include "configuration.h"
+#include "gps.h"
+#include <HardwareSerial.h>
+#include <SparkFun_u-blox_GNSS_Arduino_Library.h> 
 
-uint32_t LatitudeBinary;
-uint32_t LongitudeBinary;
-uint16_t altitudeGps;
-uint8_t hdopGps;
-uint8_t sats;
-int speed;
-char t[32]; // used to sprintf for Serial output
+HardwareSerial gpsSerial(GPS_SERIAL_NUM);
+SFE_UBLOX_GNSS myGNSS;
 
-TinyGPSPlus _gps;
-HardwareSerial _serial_gps(GPS_SERIAL_NUM);
+/* Copied from https://github.com/mikalhart/TinyGPSPlus/blob/master/src/TinyGPS%2B%2B.cpp 
+(GPL v2.1)
+TinyGPS++ - a small GPS library for Arduino providing universal NMEA parsing
+Based on work by and "distanceBetween" and "courseTo" courtesy of Maarten Lamers.
+Suggestion to add satellites, courseTo(), and cardinal() by Matt Monson.
+Location precision improvements suggested by Wayne Holder.
+Copyright (C) 2008-2013 Mikal Hart
+All rights reserved.
+*/
+double distanceBetween(double lat1, double long1, double lat2, double long2)
+{
+  // returns distance in meters between two positions, both specified
+  // as signed decimal-degrees latitude and longitude. Uses great-circle
+  // distance computation for hypothetical sphere of radius 6372795 meters.
+  // Because Earth is no exact sphere, rounding errors may be up to 0.5%.
+  // Courtesy of Maarten Lamers
+  double delta = radians(long1-long2);
+  double sdlong = sin(delta);
+  double cdlong = cos(delta);
+  lat1 = radians(lat1);
+  lat2 = radians(lat2);
+  double slat1 = sin(lat1);
+  double clat1 = cos(lat1);
+  double slat2 = sin(lat2);
+  double clat2 = cos(lat2);
+  delta = (clat1 * slat2) - (slat1 * clat2 * cdlong);
+  delta = sq(delta);
+  delta += sq(clat2 * sdlong);
+  delta = sqrt(delta);
+  double denom = (slat1 * slat2) + (clat1 * clat2 * cdlong);
+  delta = atan2(delta, denom);
+  return delta * 6372795;
+}
 
 void gps_time(char * buffer, uint8_t size) {
-    snprintf(buffer, size, "%02d:%02d:%02d", _gps.time.hour(), _gps.time.minute(), _gps.time.second());
+    //snprintf(buffer, size, "%02d:%02d:%02d", _gps.time.hour(), _gps.time.minute(), _gps.time.second());
 }
 
 float gps_latitude() {
-    return _gps.location.lat();
+    //return _gps.location.lat();
+    return 0.0;
 }
 
 float gps_distanceBetween(float last_lat, float last_lon, float lat, float lon) {
-    return _gps.distanceBetween(last_lat, last_lon, lat, lon);
+    return (float) distanceBetween(last_lat, last_lon, lat, lon);
 }
 
 float gps_longitude() {
-    return _gps.location.lng();
+    //return _gps.location.lng();
+    return 0.0;
 }
 
 float gps_altitude() {
-    return _gps.altitude.meters();
+    //return _gps.altitude.meters();
+    return 0.0;
 }
 
 float gps_hdop() {
-    return _gps.hdop.hdop();
+    //return _gps.hdop.hdop();
+    return 0.0;
 }
 
 uint8_t gps_sats() {
-    return _gps.satellites.value();
+    //return _gps.satellites.value();
+    return 0;
 }
 
-void gps_setup() {
-    _serial_gps.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+float gps_speed() {
+    return 0.0;
 }
 
-static void gps_loop() {
-    while (_serial_gps.available()) {
-        _gps.encode(_serial_gps.read());
-    }
+boolean fresh_gps = false;
+
+#if 0
+void foofreshPVTdata(UBX_NAV_PVT_data_t ubxDataStruct)
+{
+      fresh_gps = true;
+      Serial.println();
+
+      Serial.print(F("Time: "));        // Print the time
+      uint8_t hms = ubxDataStruct.hour; // Print the hours
+      if (hms < 10)
+          Serial.print(F("0")); // Print a leading zero if required
+      Serial.print(hms);
+      Serial.print(F(":"));
+      hms = ubxDataStruct.min; // Print the minutes
+      if (hms < 10)
+          Serial.print(F("0")); // Print a leading zero if required
+      Serial.print(hms);
+      Serial.print(F(":"));
+      hms = ubxDataStruct.sec; // Print the seconds
+      if (hms < 10)
+          Serial.print(F("0")); // Print a leading zero if required
+      Serial.print(hms);
+      Serial.print(F("."));
+      unsigned long millisecs = ubxDataStruct.iTOW % 1000; // Print the milliseconds
+      if (millisecs < 100)
+          Serial.print(F("0")); // Print the trailing zeros correctly
+      if (millisecs < 10)
+          Serial.print(F("0"));
+      Serial.print(millisecs);
+
+      long latitude = ubxDataStruct.lat; // Print the latitude
+      Serial.print(F(" Lat: "));
+      Serial.print(latitude);
+
+      long longitude = ubxDataStruct.lon; // Print the longitude
+      Serial.print(F(" Long: "));
+      Serial.print(longitude);
+      Serial.print(F(" (degrees * 10^-7)"));
+
+      long altitude = ubxDataStruct.hMSL; // Print the height above mean sea level
+      Serial.print(F(" Height above MSL: "));
+      Serial.print(altitude);
+      Serial.println(F(" (mm)"));
 }
-
-
-#if defined(PAYLOAD_USE_MAPPER)
-// Same format as CubeCell mappers
-void buildPacket(uint8_t txBuffer[11]) {
-  LatitudeBinary = ((_gps.location.lat() + 90) / 180.0) * 16777215;
-  LongitudeBinary = ((_gps.location.lng() + 180) / 360.0) * 16777215;
-  altitudeGps = (uint16_t)_gps.altitude.meters();
-  speed = (uint16_t)_gps.speed.kmph(); // convert from float
-  sats = _gps.satellites.value();
-  // hdopGps = _gps.hdop.value() / 10;
-
-  sprintf(t, "Lat: %f, ", _gps.location.lat());
-  Serial.print(t);
-  sprintf(t, "Long: %f, ", _gps.location.lng());
-  Serial.print(t);
-  sprintf(t, "Alt: %f, ", _gps.altitude.meters());
-  Serial.print(t);
-//  sprintf(t, "Hdop: %d", hdopGps);
-//  Serial.println(t);
-  sprintf(t, "Sats: %d", sats);
-  Serial.println(t);
-
-  txBuffer[0] = (LatitudeBinary >> 16) & 0xFF;
-  txBuffer[1] = (LatitudeBinary >> 8) & 0xFF;
-  txBuffer[2] = LatitudeBinary & 0xFF;
-  txBuffer[3] = (LongitudeBinary >> 16) & 0xFF;
-  txBuffer[4] = (LongitudeBinary >> 8) & 0xFF;
-  txBuffer[5] = LongitudeBinary & 0xFF;
-  txBuffer[6] = (altitudeGps >> 8) & 0xFF;
-  txBuffer[7] = altitudeGps & 0xFF;
-
-  txBuffer[8] = ((unsigned char *)(&speed))[0];
-
-  uint16_t batteryVoltage = ((float_t)((float_t)(axp.getBattVoltage()) / 10.0) + .5);
-  txBuffer[9] = (uint8_t)((batteryVoltage - 200) & 0xFF);
- 
-  txBuffer[10] = sats & 0xFF;
-}
-
-#elif defined(PAYLOAD_USE_FULL)
-
-    // More data than PAYLOAD_USE_CAYENNE
-    void buildPacket(uint8_t txBuffer[10])
-    {
-        LatitudeBinary = ((_gps.location.lat() + 90) / 180.0) * 16777215;
-        LongitudeBinary = ((_gps.location.lng() + 180) / 360.0) * 16777215;
-        altitudeGps = _gps.altitude.meters();
-        hdopGps = _gps.hdop.value() / 10;
-        sats = _gps.satellites.value();
-
-        sprintf(t, "Lat: %f", _gps.location.lat());
-        Serial.println(t);
-        sprintf(t, "Lng: %f", _gps.location.lng());
-        Serial.println(t);
-        sprintf(t, "Alt: %d", altitudeGps);
-        Serial.println(t);
-        sprintf(t, "Hdop: %d", hdopGps);
-        Serial.println(t);
-        sprintf(t, "Sats: %d", sats);
-        Serial.println(t);
-
-        txBuffer[0] = ( LatitudeBinary >> 16 ) & 0xFF;
-        txBuffer[1] = ( LatitudeBinary >> 8 ) & 0xFF;
-        txBuffer[2] = LatitudeBinary & 0xFF;
-        txBuffer[3] = ( LongitudeBinary >> 16 ) & 0xFF;
-        txBuffer[4] = ( LongitudeBinary >> 8 ) & 0xFF;
-        txBuffer[5] = LongitudeBinary & 0xFF;
-        txBuffer[6] = ( altitudeGps >> 8 ) & 0xFF;
-        txBuffer[7] = altitudeGps & 0xFF;
-
-        txBuffer[8] = hdopGps & 0xFF;
-        txBuffer[9] = sats & 0xFF;
-    }
-
-#elif defined(PAYLOAD_USE_CAYENNE)
-
-    // CAYENNE DF
-    void buildPacket(uint8_t txBuffer[11])
-    {
-        sprintf(t, "Lat: %f", _gps.location.lat());
-        Serial.println(t);
-        sprintf(t, "Lng: %f", _gps.location.lng());
-        Serial.println(t);        
-        sprintf(t, "Alt: %f", _gps.altitude.meters());
-        Serial.println(t);        
-        int32_t lat = _gps.location.lat() * 10000;
-        int32_t lon = _gps.location.lng() * 10000;
-        int32_t alt = _gps.altitude.meters() * 100;
-        
-        txBuffer[2] = lat >> 16;
-        txBuffer[3] = lat >> 8;
-        txBuffer[4] = lat;
-        txBuffer[5] = lon >> 16;
-        txBuffer[6] = lon >> 8;
-        txBuffer[7] = lon;
-        txBuffer[8] = alt >> 16;
-        txBuffer[9] = alt >> 8;
-        txBuffer[10] = alt;
-    }
-
 #endif
+
+void gps_setup(void) {
+  gpsSerial.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+  gpsSerial.setRxBufferSize(2048); // Default is 256
+  // myGNSS.enableDebugging();
+
+  bool changed_speed = false;
+
+  // Check all the possible GPS bitrates to get in sync
+  do {
+    if (myGNSS.begin(gpsSerial)) {
+        Serial.println("GPS connected.");
+        break;
+    }
+
+    // Well, wasn't where we expected it
+    changed_speed = true;
+
+    Serial.println("Trying 115200...");
+    gpsSerial.updateBaudRate(115200);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 115200 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      continue;
+    }
+
+    Serial.println("Trying 9600...");
+    gpsSerial.updateBaudRate(9600);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 9600 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      myGNSS.setSerialRate(115200);
+      continue;
+    }
+    
+    Serial.println("Trying 38400...");
+    gpsSerial.updateBaudRate(38400);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 38400 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      myGNSS.setSerialRate(115200);
+      continue;
+    }
+
+    Serial.println("Trying 57600...");
+    gpsSerial.updateBaudRate(57600);
+    if (myGNSS.begin(gpsSerial)) {
+      Serial.println("GPS found at 57600 baud");
+      myGNSS.setSerialRate(GPS_BAUDRATE);
+      continue;
+    }
+
+    Serial.println("Could not connect to GPS. Retrying all speeds...");
+  } while (1);
+
+    myGNSS.setUART1Output(COM_TYPE_UBX); //Set the UART port to output UBX only
+    myGNSS.setI2COutput(COM_TYPE_UBX); //Set the I2C port to output UBX only (turn off NMEA noise)
+    if (0)
+        myGNSS.factoryReset();
+    
+    /* Not so interesting, since it's always version 0.0 */
+    #if 0
+    Serial.print(F("GPS Protocol Version: "));
+    byte versionHigh = myGNSS.getProtocolVersionHigh();
+    Serial.print(versionHigh);
+    Serial.print(".");
+    byte versionLow = myGNSS.getProtocolVersionLow();
+    Serial.println(versionLow);
+    #endif
+    
+    if (changed_speed)
+        myGNSS.saveConfiguration(); //Save the current settings to flash and BBR
+        
+ //   myGNSS.setAutoPVTcallback(&freshPVTdata); // Enable automatic NAV PVT messages with callback to printPVTdata
+    myGNSS.setNavigationFrequency(1); //Produce one solution per second
+  }
+
+
+void gps_loop(void) {
+    myGNSS.checkUblox();
+    myGNSS.checkCallbacks();
+
+    if (!fresh_gps)
+        return;
+    fresh_gps = false;
+
+    long latitude = myGNSS.getLatitude();
+    Serial.print(F("Lat: "));
+    Serial.print(latitude);
+
+    long longitude = myGNSS.getLongitude();
+    Serial.print(F(" Long: "));
+    Serial.print(longitude);
+    Serial.print(F(" (degrees * 10^-7)"));
+
+    long altitude = myGNSS.getAltitude();
+    Serial.print(F(" Alt: "));
+    Serial.print(altitude);
+    Serial.print(F(" (mm)"));
+
+    byte SIV = myGNSS.getSIV();
+    Serial.print(F(" SIV: "));
+    Serial.print(SIV);
+
+    Serial.println();
+}

@@ -75,7 +75,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define LORAWAN_ADR             0               // Enable ADR
 
 #define DEBUG_PORT              Serial          // Serial debug port
-#define SERIAL_BAUD             115200          // Serial debug baud rate
+#define SERIAL_BAUD             115200          // Serial debug baud rate (should match bootloader = 115200)
 
 // -----------------------------------------------------------------------------
 // DEBUG
@@ -124,14 +124,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // GPS
 // -----------------------------------------------------------------------------
 
-#define GPS_SERIAL_NUM  1
-#define GPS_BAUDRATE    9600
+#define GPS_SERIAL_NUM  1 // SerialX
+#define GPS_BAUDRATE    115200
 #define USE_GPS         1
 
 #if defined(T_BEAM_V07)
 #define GPS_RX_PIN      12
 #define GPS_TX_PIN      15
-#elif defined(T_BEAM_V10)
+#elif defined(T_BEAM_V10) // Or T-Beam v1.1
 #define GPS_RX_PIN      34
 #define GPS_TX_PIN      12
 #endif

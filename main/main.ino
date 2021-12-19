@@ -36,11 +36,11 @@
 
 */
 
-#include <Arduino.h>
 #include "configuration.h"
-#include <TinyGPS++.h>
+#include <Arduino.h>
 #include <Wire.h>
 #include <axp20x.h>
+#include "gps.h"
 
 // Defined in ttn.ino
 void ttn_register(void (*callback)(uint8_t message));
@@ -60,12 +60,12 @@ float min_dist_moved = MIN_DIST;
 
 AXP20X_Class axp;
 bool pmu_irq = false;
-const char *baChStatus = "unknown";
 
 bool ssd1306_found = false;
 bool axp192_found = false;
 
-bool packetSent, packetQueued;
+//bool packetSent;
+bool packetQueued;
 bool isJoined = false;
 
 #if defined(PAYLOAD_USE_FULL)
@@ -88,18 +88,61 @@ char buffer[40]; // Screen buffer
 // Application
 // -----------------------------------------------------------------------------
 
-void buildPacket(uint8_t txBuffer[]); // needed for platformio
-
 /**
    If we have a valid position send it to the server.
    @return true if we decided to send.
 */
+
+
+// Same format as CubeCell mappers
+void buildPacket(uint8_t txBuffer[]) 
+{
+    char t[32]; // used to sprintf for Serial output
+    uint32_t LatitudeBinary;
+    uint32_t LongitudeBinary;
+    uint16_t altitudeGps;
+    //uint8_t hdopGps;
+    uint8_t sats;
+    uint16_t speed;
+
+    LatitudeBinary = ((gps_latitude() + 90) / 180.0) * 16777215;
+    LongitudeBinary = ((gps_longitude() + 180) / 360.0) * 16777215;
+    altitudeGps = (uint16_t)gps_altitude();
+    speed = (uint16_t)gps_speed(); // convert from float
+    sats = gps_sats();
+  
+    sprintf(t, "Lat: %f, ", gps_latitude());
+    Serial.print(t);
+    sprintf(t, "Long: %f, ", gps_longitude());
+    Serial.print(t);
+    sprintf(t, "Alt: %f, ", gps_altitude());
+    Serial.print(t);
+    sprintf(t, "Sats: %d", sats);
+    Serial.println(t);
+
+    txBuffer[0] = (LatitudeBinary >> 16) & 0xFF;
+    txBuffer[1] = (LatitudeBinary >> 8) & 0xFF;
+    txBuffer[2] = LatitudeBinary & 0xFF;
+    txBuffer[3] = (LongitudeBinary >> 16) & 0xFF;
+    txBuffer[4] = (LongitudeBinary >> 8) & 0xFF;
+    txBuffer[5] = LongitudeBinary & 0xFF;
+    txBuffer[6] = (altitudeGps >> 8) & 0xFF;
+    txBuffer[7] = altitudeGps & 0xFF;
+
+    txBuffer[8] = ((unsigned char *)(&speed))[0];
+
+    uint16_t batteryVoltage = ((float_t)((float_t)(axp.getBattVoltage()) / 10.0) + .5);
+    txBuffer[9] = (uint8_t)((batteryVoltage - 200) & 0xFF);
+
+    txBuffer[10] = sats & 0xFF;
+}
 
 bool trySend()
 {
   float now_lat = gps_latitude();
   float now_long = gps_longitude();
   unsigned long int now_millis = millis();
+
 
   // Here we try to filter out bogus GPS readings.  It's not correct, and there should be a better indication from GPS that the fix is invalid
   if (gps_hdop() <= 0 || gps_hdop() > 50 
@@ -178,7 +221,7 @@ bool trySend()
   // send it!
   packetQueued = true;
   ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
-  packetSent = true;
+  //packetSent = true;
   last_send_millis = now_millis;
   last_send_lat = now_lat;
   last_send_lon = now_long;
@@ -297,7 +340,8 @@ void callback(uint8_t message)
   if (EV_TXCOMPLETE == message && packetQueued) {
 //    screen_print("sent.\n");
     packetQueued = false;
-    packetSent = true;
+ //   packetSent = true;
+    axp.setChgLEDMode(AXP20X_LED_OFF);
   }
 
   if (EV_RXCOMPLETE == message || EV_RESPONSE == message) {
@@ -409,7 +453,6 @@ void axp192Init() {
     } else {
       Serial.println("AXP192 Begin FAIL");
     }
-    // axp.setChgLEDMode(LED_BLINK_4HZ);
   #if 0
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
@@ -426,6 +469,10 @@ void axp192Init() {
     axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
     axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON); // OLED & AXP192 power
     axp.setDCDC1Voltage(3300); // for the OLED power
+    // Flash LED until first packet is transmitted
+    axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
+    //axp.setChgLEDMode(AXP20X_LED_OFF);
+
 
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
@@ -443,12 +490,6 @@ void axp192Init() {
     axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
     axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
     axp.clearIRQ();
-
-    if (axp.isChargeing()) {
-      baChStatus = "Charging: Yes";
-    } else {
-      baChStatus = "Charging: No";
-    }
   } else {
     Serial.println("AXP192 not found");
   }
@@ -486,10 +527,6 @@ void setup() {
 
   // Buttons & LED
   pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
-
-#ifdef LED_PIN
-  pinMode(LED_PIN, OUTPUT);
-#endif
 
   // Hello
   DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
@@ -535,6 +572,16 @@ void setup() {
   }
 }
 
+// Power OFF -- does not return
+void clean_shutdown (void)
+{
+    LMIC_shutdown(); // cleanly shutdown the radio
+    ttn_write_prefs();
+    axp.setChgLEDMode(AXP20X_LED_OFF);  // Surprisingly sticky if you don't set it
+
+    axp.shutdown(); // PMIC power off
+}
+
 void update_activity()
 {
   float bat_volts = axp.getBattVoltage() / 1000;
@@ -545,17 +592,10 @@ void update_activity()
   {
     Serial.println("Low Battery OFF");
     screen_print("Low Battery OFF\n");
-    ttn_write_prefs();
     delay(4999); // Give some time to read the screen
-    axp.shutdown(); // PMIC power off
-    // Does not return
+    clean_shutdown();
   }
 
-/*
-  if (bat_volts > BATTERY_HI_VOLTAGE)
-    tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
-  else 
-  */
   if (!freeze_tx_interval_ms) 
   {
     unsigned long int now_interval;
@@ -620,21 +660,31 @@ void loop() {
   screen_loop();
   update_activity();
 
+/*
   if (packetSent) {
     packetSent = false;
-  }
+  } */
 
-  // Short press on power button (near USB) also causes PMIC IRQ
+  // If any interrupts on PMIC, report the name
   if (axp192_found && pmu_irq) {
     const char *irq_name;
     pmu_irq = false;
     axp.readIRQ();
     irq_name = find_irq_name();
+
+    if (axp.isPEKLongtPressIRQ()) // They want to turn OFF
+    {
+      screen_print("Power OFF\n");
+      delay(2999); // Give some time to read the screen
+      clean_shutdown();
+    }
+
     axp.clearIRQ();
 
     snprintf(buffer, sizeof(buffer), "%s\n", irq_name);
     screen_print(buffer);
   }
+
 
   static uint32_t pressTime = 0; // what tick should we call this press long enough
   if (!digitalRead(MIDDLE_BUTTON_PIN)) {
@@ -663,6 +713,7 @@ void loop() {
 
   if (trySend()) {
       // Good send
+      axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
   } else {
       // Nothing sent. 
       // Do NOT delay() here.. the LoRa receiver and join housekeeping also needs to run!
