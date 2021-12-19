@@ -105,9 +105,6 @@ void gps_setup(void) {
   if (0)
     myGNSS.factoryReset();
 
-  if (changed_speed)
-    myGNSS.saveConfiguration(); // Save the current settings to flash and BBR
-
   myGNSS.setNavigationFrequency(1); // Produce one solution per second
   
   myGNSS.disableNMEAMessage(UBX_NMEA_DTM, COM_PORT_UART1);
@@ -132,6 +129,9 @@ void gps_setup(void) {
 
   myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1); // For Speed
   myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1); // For Time & Location
+
+  if (changed_speed)
+    myGNSS.saveConfiguration(); // Save the current settings to flash and BBR
 }
 
 void gps_loop(void) {

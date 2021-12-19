@@ -68,30 +68,14 @@ bool axp192_found = false;
 bool packetQueued;
 bool isJoined = false;
 
-#if defined(PAYLOAD_USE_FULL)
-// includes number of satellites and accuracy
-static uint8_t txBuffer[10];
-#elif defined(PAYLOAD_USE_CAYENNE)
-// CAYENNE DF
-static uint8_t txBuffer[11] = {0x03, 0x88, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-#elif defined (PAYLOAD_USE_MAPPER)
-  static uint8_t txBuffer[11];
-#endif
+// Buffer for Payload frame
+static uint8_t txBuffer[11];
 
 // deep sleep support
 RTC_DATA_ATTR int bootCount = 0;
 esp_sleep_source_t wakeCause; // the reason we booted this time
 
 char buffer[40]; // Screen buffer
-
-// -----------------------------------------------------------------------------
-// Application
-// -----------------------------------------------------------------------------
-
-/**
-   If we have a valid position send it to the server.
-   @return true if we decided to send.
-*/
 
 
 // Same format as CubeCell mappers
@@ -137,14 +121,15 @@ void buildPacket(uint8_t txBuffer[])
     txBuffer[10] = sats & 0xFF;
 }
 
+// Send a packet if one is warranted
 bool trySend()
 {
   float now_lat = gps_latitude();
   float now_long = gps_longitude();
   unsigned long int now_millis = millis();
 
-
-  // Here we try to filter out bogus GPS readings.  It's not correct, and there should be a better indication from GPS that the fix is invalid
+  // Here we try to filter out bogus GPS readings.
+  // It's not correct, and there should be a better indication from GPS that the fix is invalid
   if (gps_hdop() <= 0 || gps_hdop() > 50 
       || now_lat == 0.0                // Not fair to the whole equator
       || now_lat > 90.0 || now_lat < -90.0
@@ -229,6 +214,7 @@ bool trySend()
   return true; // We did it!
 }
 
+#if 0
 void doDeepSleep(uint64_t msecToWake)
 {
   Serial.printf("Entering deep sleep for %llu seconds\n", msecToWake / 1000);
@@ -260,44 +246,10 @@ void doDeepSleep(uint64_t msecToWake)
   esp_sleep_enable_timer_wakeup(msecToWake * 1000ULL); // call expects usecs
   esp_deep_sleep_start();                              // TBD mA sleep current (battery)
 }
-
-
-void update_status() {
-  float_t batt_volts = axp.getBattVoltage() / 1000.0;
-  float_t charge_ma = axp.getBattChargeCurrent();
-  float_t discharge_ma = axp.getBattDischargeCurrent();
-  // static boolean screen_sleep = false;
-
-  if (0)
-  {
-    snprintf(buffer, sizeof(buffer), "%.2fv %.1fmA\n", batt_volts, charge_ma - discharge_ma);
-    Serial.println(buffer);
-  }
-
-#if 0
-  if ((batt_volts > SLEEP_VOLTAGE) || (charge_ma - discharge_ma > 1.0)) {
-    if (screen_sleep) {
-      screen_sleep = false;
-      screen_on();
-    }
-  } else {
-    if (!screen_sleep) {
-      screen_sleep = true;
-      screen_off();
-    }
-  }
 #endif
 
-#if 0  
-  // Set the user button to wake the board
-  sleep_interrupt(MIDDLE_BUTTON_PIN, LOW);
-
-  doDeepSleep(SEND_INTERVAL);
-#endif
-}
-
-
-void callback(uint8_t message) 
+// LoRa message event callback
+void lora_msg_callback(uint8_t message) 
 {
   static boolean seen_joined = false, seen_joining = false;
 #ifdef DEBUG_LORA_MESSAGES
@@ -497,7 +449,7 @@ void axp192Init() {
 
 
 // Perform power on init that we do on each wake from deep sleep
-void initDeepSleep() {
+void wakeup() {
   bootCount++;
   wakeCause = esp_sleep_get_wakeup_cause();
   /*
@@ -518,7 +470,7 @@ void setup() {
   DEBUG_PORT.begin(SERIAL_BAUD);
 #endif
 
-  initDeepSleep();
+  wakeup();
 
   Wire.begin(I2C_SDA, I2C_SCL);
   scanI2Cdevice();
@@ -565,7 +517,7 @@ void setup() {
     }
   }
   else {
-    ttn_register(callback);
+    ttn_register(lora_msg_callback);
     // ttn_erase_prefs();
     ttn_join();
     ttn_adr(LORAWAN_ADR);

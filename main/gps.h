@@ -10,5 +10,4 @@ float gps_longitude(void);
 float gps_altitude(void);
 float gps_hdop(void);
 uint8_t gps_sats(void);
-float gps_speed(void);
 float gps_hdop(void);
