@@ -37,9 +37,12 @@
 */
 
 #include "configuration.h"
+
 #include <Arduino.h>
 #include <Wire.h>
 #include <axp20x.h>
+#include <lmic.h>
+
 #include "gps.h"
 
 // Defined in ttn.ino
@@ -159,25 +162,23 @@ bool trySend()
   screen_print(buffer);
   #endif
 
-  char because_justsend = ' ';
-  char because_distance = ' ';
-  char because_stationary = ' ';
+  char because = '?';
   if (justSendNow)
   {
     justSendNow = false;
     Serial.println("** JUST_SEND_NOW");
-    because_justsend = '>';
+    because = '>';
   }
   else if (dist_moved > min_dist_moved)
   {
     Serial.println("** MOVING");
     last_moved_millis = now_millis;
-    because_distance = '!';
+    because = 'D';
   }
   else if (now_millis - last_send_millis > tx_interval_ms)
   {
     Serial.println("** STATIONARY_TX");
-    because_stationary = '!';
+    because = 'T';
   }
   else
   {
@@ -188,10 +189,10 @@ bool trySend()
 
   // The first distance-moved is crazy, since has no origin.. don't put it on screen.
   if (dist_moved < 1000000) {
-    snprintf(buffer, sizeof(buffer), "%c%lus%c %.0fm%c",
-             because_justsend,
-             (now_millis - last_send_millis) / 1000, because_stationary,
-             dist_moved, because_distance);
+    snprintf(buffer, sizeof(buffer), "%c %4lus %4.0fm ",
+             because,
+             (now_millis - last_send_millis) / 1000,
+             dist_moved);
     screen_print(buffer);
   }
 
@@ -292,7 +293,6 @@ void lora_msg_callback(uint8_t message)
   if (EV_TXCOMPLETE == message && packetQueued) {
 //    screen_print("sent.\n");
     packetQueued = false;
- //   packetSent = true;
     axp.setChgLEDMode(AXP20X_LED_OFF);
   }
 
@@ -358,32 +358,33 @@ void scanI2Cdevice(void)
     Wire.beginTransmission(addr);
     err = Wire.endTransmission();
     if (err == 0) {
+#if 0
       Serial.print("I2C device found at address 0x");
       if (addr < 16)
         Serial.print("0");
       Serial.print(addr, HEX);
       Serial.println(" !");
+#endif
       nDevices++;
 
       if (addr == SSD1306_ADDRESS) {
         ssd1306_found = true;
-        Serial.println("ssd1306 display found");
+        Serial.println("SSD1306 OLED display");
       }
       if (addr == AXP192_SLAVE_ADDRESS) {
         axp192_found = true;
-        Serial.println("axp192 PMU found");
+        Serial.println("AXP192 PMU");
       }
     } else if (err == 4) {
-      Serial.print("Unknow error at address 0x");
+      Serial.print("Unknow i2c device at 0x");
       if (addr < 16)
         Serial.print("0");
       Serial.println(addr, HEX);
     }
   }
   if (nDevices == 0)
-    Serial.println("No I2C devices found\n");
-  else
-    Serial.println("done\n");
+    Serial.println("No I2C devices found!\n");
+  /* else  Serial.println("done\n"); */
 }
 
 /**
@@ -441,6 +442,7 @@ void axp192Init() {
 
     axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
     axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+    axp.enableIRQ(0xFFFFFFFFFF, 1);  // See this nerd badge?  Give me all the interrupts you have.
     axp.clearIRQ();
   } else {
     Serial.println("AXP192 not found");
