@@ -207,7 +207,6 @@ bool trySend()
   // send it!
   packetQueued = true;
   ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
-  //packetSent = true;
   last_send_millis = now_millis;
   last_send_lat = now_lat;
   last_send_lon = now_long;
@@ -284,6 +283,7 @@ void lora_msg_callback(uint8_t message)
   {
     isJoined = true;
     screen_print("Joined Helium!\n");
+    ttn_sf(LORAWAN_SF);  // Joining seems to leave it at SF10
   }
 
   if (EV_TXSTART == message) {
@@ -297,7 +297,6 @@ void lora_msg_callback(uint8_t message)
   }
 
   if (EV_RXCOMPLETE == message || EV_RESPONSE == message) {
-
     size_t len = ttn_response_len();
     uint8_t data[len];
     uint8_t port;

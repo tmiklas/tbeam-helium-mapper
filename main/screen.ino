@@ -27,7 +27,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "fonts.h"
 #include "credentials.h"
 
-#define SCREEN_HEADER_HEIGHT    14
+#define SCREEN_HEADER_HEIGHT    24
 
 SSD1306Wire * display;
 uint8_t _screen_line = SCREEN_HEADER_HEIGHT - 1;
@@ -35,10 +35,10 @@ uint8_t _screen_line = SCREEN_HEADER_HEIGHT - 1;
 void _screen_header() {
     if(!display) return;
 
-    char buffer[20];
+    char buffer[40];
 
-    // Cycle display every 2 seconds
-    if (axp192_found && millis() % 4000 < 2000)
+    // Cycle display every 3 seconds
+    if (axp192_found && millis() % 6000 < 3000)
     {
         // 2 bytes of Device EUI with Voltage and Current
         snprintf(buffer, sizeof(buffer), "#%03X", ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4));
@@ -64,6 +64,16 @@ void _screen_header() {
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
     display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, itoa(gps_sats(), buffer, 10));
     display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT, SATELLITE_IMAGE);
+
+    // Second row.  So dirty; don't judge:
+    u1_t ttn_current_dr(void);
+    const char *ttn_sf_name(u1_t dr);
+    extern float min_dist_moved;
+    extern unsigned long int tx_interval_ms;
+
+    snprintf(buffer, sizeof(buffer), "-- %lus %.0fm %s --", tx_interval_ms / 1000, min_dist_moved, ttn_sf_name(ttn_current_dr()));
+    display->setTextAlignment(TEXT_ALIGN_LEFT);
+    display->drawString(0, 12, buffer);
 }
 
 void screen_show_logo() {
@@ -134,7 +144,6 @@ void screen_setup() {
 
 void screen_loop() {
     if (!display) return;
-
 
     display->clear();
     _screen_header();

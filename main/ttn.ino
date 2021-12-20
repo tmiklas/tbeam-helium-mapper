@@ -230,6 +230,26 @@ static void initCount() {
   }
 }
 
+u1_t ttn_current_dr (void) {
+    return LMIC.datarate;
+}
+
+const char *ttn_sf_name (u1_t dr) {
+    switch(dr)
+    {
+        case DR_SF10:
+            return "SF10 DR0";
+        case DR_SF9:
+            return "SF9 DR1";
+        case DR_SF8:
+            return "SF8 DR2";
+        case DR_SF7:
+            return "SF7 DR3";
+        default:
+            return "SF?? DR?";
+     }
+}
+
 
 bool ttn_setup() {
     initCount();
@@ -263,124 +283,136 @@ bool ttn_setup() {
 }
 
 void ttn_join() {
-    // Reset the MAC state. Session and pending data transfers will be discarded.
-    LMIC_reset();
+  // Reset the MAC state. Session and pending data transfers will be discarded.
+  LMIC_reset();
 
-    #ifdef CLOCK_ERROR
-    LMIC_setClockError(MAX_CLOCK_ERROR * CLOCK_ERROR / 100);
-    #endif
+#ifdef CLOCK_ERROR
+  LMIC_setClockError(MAX_CLOCK_ERROR * CLOCK_ERROR / 100);
+#endif
 
-        #if defined(CFG_eu868)
+#if defined(CFG_eu868)
 
-            // Set up the channels used by the Things Network, which corresponds
-            // to the defaults of most gateways. Without this, only three base
-            // channels from the LoRaWAN specification are used, which certainly
-            // works, so it is good for debugging, but can overload those
-            // frequencies, so be sure to configure the full frequency range of
-            // your network here (unless your network autoconfigures them).
-            // Setting up channels should happen after LMIC_setSession, as that
-            // configures the minimal channel set.
-            LMIC_setupChannel(0, 868100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(1, 868300000, DR_RANGE_MAP(DR_SF12, DR_SF7B), BAND_CENTI);      // g-band
-            LMIC_setupChannel(2, 868500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(3, 867100000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(4, 867300000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(5, 867500000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(6, 867700000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(7, 867900000, DR_RANGE_MAP(DR_SF12, DR_SF7),  BAND_CENTI);      // g-band
-            LMIC_setupChannel(8, 868800000, DR_RANGE_MAP(DR_FSK,  DR_FSK),  BAND_MILLI);      // g2-band
+  // Set up the channels used by the Things Network, which corresponds
+  // to the defaults of most gateways. Without this, only three base
+  // channels from the LoRaWAN specification are used, which certainly
+  // works, so it is good for debugging, but can overload those
+  // frequencies, so be sure to configure the full frequency range of
+  // your network here (unless your network autoconfigures them).
+  // Setting up channels should happen after LMIC_setSession, as that
+  // configures the minimal channel set.
+  LMIC_setupChannel(0, 868100000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(1, 868300000, DR_RANGE_MAP(DR_SF12, DR_SF7B),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(2, 868500000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(3, 867100000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(4, 867300000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(5, 867500000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(6, 867700000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(7, 867900000, DR_RANGE_MAP(DR_SF12, DR_SF7),
+                    BAND_CENTI); // g-band
+  LMIC_setupChannel(8, 868800000, DR_RANGE_MAP(DR_FSK, DR_FSK),
+                    BAND_MILLI); // g2-band
 
-        #elif defined(CFG_us915)
+#elif defined(CFG_us915)
 
-            // NA-US channels 0-71 are configured automatically
-            // but only one group of 8 should (a subband) should be active
-            // TTN recommends the second sub band, 1 in a zero based count.
-            // https://github.com/TheThingsNetwork/gateway-conf/blob/master/US-global_conf.json
-            // in the US, with TTN, it saves join time if we start on subband 1
-            // (channels 8-15). This will get overridden after the join by
-            // parameters from the network. If working with other networks or in
-            // other regions, this will need to be changed.
-            LMIC_selectSubBand(1);
+  // NA-US channels 0-71 are configured automatically
+  // but only one group of 8 should (a subband) should be active
+  // TTN recommends the second sub band, 1 in a zero based count.
+  // https://github.com/TheThingsNetwork/gateway-conf/blob/master/US-global_conf.json
+  // in the US, with TTN, it saves join time if we start on subband 1
+  // (channels 8-15). This will get overridden after the join by
+  // parameters from the network. If working with other networks or in
+  // other regions, this will need to be changed.
+  LMIC_selectSubBand(1);
 
-        #elif defined(CFG_au915)
+#elif defined(CFG_au915)
 
-            // set sub band for AU915
-            // https://github.com/TheThingsNetwork/gateway-conf/blob/master/AU-global_conf.json
-            LMIC_selectSubBand(1);
-        
-        #endif
+  // set sub band for AU915
+  // https://github.com/TheThingsNetwork/gateway-conf/blob/master/AU-global_conf.json
+  LMIC_selectSubBand(1);
 
-        // TTN defines an additional channel at 869.525Mhz using SF9 for class B
-        // devices' ping slots. LMIC does not have an easy way to define set this
-        // frequency and support for class B is spotty and untested, so this
-        // frequency is not configured here.
+#endif
 
-        // Disable link check validation
-        LMIC_setLinkCheckMode(0);
+  // TTN defines an additional channel at 869.525Mhz using SF9 for class B
+  // devices' ping slots. LMIC does not have an easy way to define set this
+  // frequency and support for class B is spotty and untested, so this
+  // frequency is not configured here.
 
-        #ifdef SINGLE_CHANNEL_GATEWAY
-        forceTxSingleChannelDr();
-        #else
-        // Set default rate and transmit power for uplink (note: txpow seems to be ignored by the library)
-        ttn_sf(LORAWAN_SF);
-        #endif
+  // Disable link check validation
+  LMIC_setLinkCheckMode(0);
 
-    #if defined(USE_ABP)
+#ifdef SINGLE_CHANNEL_GATEWAY
+  forceTxSingleChannelDr();
+#else
+  // Set default rate and transmit power for uplink (note: txpow seems to be
+  // ignored by the library)
+  ttn_sf(LORAWAN_SF);
+#endif
 
-        // Set static session parameters. Instead of dynamically establishing a session
-        // by joining the network, precomputed session parameters are be provided.
-        uint8_t appskey[sizeof(APPSKEY)];
-        uint8_t nwkskey[sizeof(NWKSKEY)];
-        memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
-        memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
-        LMIC_setSession(0x1, DEVADDR, nwkskey, appskey);
+#if defined(USE_ABP)
 
-        // TTN uses SF9 for its RX2 window.
-        LMIC.dn2Dr = DR_SF9;
+  // Set static session parameters. Instead of dynamically establishing a
+  // session by joining the network, precomputed session parameters are be
+  // provided.
+  uint8_t appskey[sizeof(APPSKEY)];
+  uint8_t nwkskey[sizeof(NWKSKEY)];
+  memcpy_P(appskey, APPSKEY, sizeof(APPSKEY));
+  memcpy_P(nwkskey, NWKSKEY, sizeof(NWKSKEY));
+  LMIC_setSession(0x1, DEVADDR, nwkskey, appskey);
 
-        // Trigger a false joined
-        _ttn_callback(EV_JOINED);
+  // TTN uses SF9 for its RX2 window.
+  LMIC.dn2Dr = DR_SF9;
 
-    #elif defined(USE_OTAA)
+  // Trigger a false joined
+  _ttn_callback(EV_JOINED);
 
-        // Make LMiC initialize the default channels, choose a channel, and
-        // schedule the OTAA join
-        LMIC_startJoining();
+#elif defined(USE_OTAA)
 
-        #ifdef SINGLE_CHANNEL_GATEWAY
-        // LMiC will already have decided to send on one of the 3 default
-        // channels; ensure it uses the one we want
-        LMIC.txChnl = SINGLE_CHANNEL_GATEWAY;
-        #endif
+  // Make LMiC initialize the default channels, choose a channel, and
+  // schedule the OTAA join
+  LMIC_startJoining();
 
-        Preferences p;
-        p.begin("lora", true); // we intentionally ignore failure here
-        uint32_t netId = p.getUInt("netId", UINT32_MAX);
-        uint32_t devAddr = p.getUInt("devAddr", UINT32_MAX);
-        uint8_t nwkKey[16], artKey[16];
-        bool keysgood = p.getBytes("nwkKey", nwkKey, sizeof(nwkKey)) == sizeof(nwkKey) && 
-                        p.getBytes("artKey", artKey, sizeof(artKey)) == sizeof(artKey);
-        p.end(); // close our prefs
+#ifdef SINGLE_CHANNEL_GATEWAY
+  // LMiC will already have decided to send on one of the 3 default
+  // channels; ensure it uses the one we want
+  LMIC.txChnl = SINGLE_CHANNEL_GATEWAY;
+#endif
 
-        if(!keysgood) {
-            // We have not yet joined a network, start a full join attempt
-            // Make LMiC initialize the default channels, choose a channel, and
-            // schedule the OTAA join
-            Serial.println("No session saved, joining from scratch");
-            LMIC_startJoining();
-        }
-        else {
-            Serial.println("Reusing saved session");
-            LMIC_setSession(netId, devAddr, nwkKey, artKey);
+  Preferences p;
+  p.begin("lora", true); // we intentionally ignore failure here
+  uint32_t netId = p.getUInt("netId", UINT32_MAX);
+  uint32_t devAddr = p.getUInt("devAddr", UINT32_MAX);
+  uint8_t nwkKey[16], artKey[16];
+  bool keysgood =
+      p.getBytes("nwkKey", nwkKey, sizeof(nwkKey)) == sizeof(nwkKey) &&
+      p.getBytes("artKey", artKey, sizeof(artKey)) == sizeof(artKey);
+  p.end(); // close our prefs
 
-            // Trigger a false joined
-            _ttn_callback(EV_JOINED);
-        }
+  if (!keysgood) {
+    // We have not yet joined a network, start a full join attempt
+    // Make LMiC initialize the default channels, choose a channel, and
+    // schedule the OTAA join
+    Serial.println("No session saved, joining from scratch");
+    LMIC_startJoining();
+  } else {
+    Serial.println("Reusing saved session");
+    LMIC_setSession(netId, devAddr, nwkKey, artKey);
 
-    #endif
+    // Trigger a false joined
+    _ttn_callback(EV_JOINED);
+  }
+
+#endif
 }
 
 void ttn_sf(unsigned char sf) {
+    // Serial.printf("Setting SF to %s\n", ttn_sf_name(sf));
     LMIC_setDrTxpow(sf, 14);
 }
 
