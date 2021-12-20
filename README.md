@@ -2,9 +2,9 @@
 ## TTGO T-Beam Tracker for the Helium LoRaWAN Network and Mapper integrations.
 by [Max-Plastix](https://github.com/Max-Plastix/tbeam-helium-mapper/)
 
-This build is a modification of work by many experts, with input from the [Helium Discord](https://discord.gg/helium) `#mappers` community.  Thanks to @Kicko and @tmiklas especially, along with the work done on similar builds for the Heltec CubeCell mappers.
+This build is a modification of work by many experts, with input from the [Helium Discord](https://discord.gg/helium) `#mappers` community.  Thanks to @Kicko, Fizzy, and @tmiklas especially, along with the work done on similar builds for the Heltec CubeCell mappers.
 
-The goal of this version is to have a TTGO T-Beam that's ideally suited to vehicle mapping and tracking, taking cues from the USB Power source and position movement for activity level.  It's intended to be highly active while the vehicle is in motion.  If you want to conserve DC or power, tune the default configuration to send less frequently.
+The goal of this version is to have a TTGO T-Beam that's ideally suited to vehicle mapping and tracking, taking cues from the USB Power source and movement for activity level.  The Mapper is intended to be highly active while the vehicle is in motion, and quieter when the vehicle is stationary.  If you want to conserve Data Credits or power, tune the default configuration to send packets less frequently.
 
 ### Mandatory Configuration
 Before Buliding and Uploading, you will probably want to inspect or change some items in these three files:
@@ -12,45 +12,58 @@ Before Buliding and Uploading, you will probably want to inspect or change some 
   - `platformio.ini`
   - `credentials.h`
 
-The comments and text below will guide you on what values to look out for.  By default, this builds is for the **US915** region.  Tune accordingly.
-You should choose your own AppKey value in `credentials.h`, either take the random one suggested by the Console Device entry, or make one up.
+The comments and text below will guide you on what values to look out for.  By default, this build is for the **US915** region.  Tune accordingly.
+You should choose your own AppKey value in `credentials.h`; either take the random one suggested by the Console Device entry, or make up one of your own.
 
-### Goals of Operation
+The COM Port called out in `platformio.ini` for Uploading and Monitoring works great on my machine, but you will have to match it to your own computer or comment them out entirely and let PlatformIO take a guess.
+
+### Theory of Operation
 When your car is started, and USB Power appears, the Mapper will power on, acquire GPS, and continue mapping.
-It re-uses the last network Join state for faster connection and fewer packets.  (Hold down the middle button to erase the last-known network state, in case this gets botched.)
+It re-uses the last network Join state for faster connection and fewer packets.  Ideally, there is no Join Request/Accept packet exchange at power-on.
 
-When running, the Mapper will send out a packet every time GPS indicates it has moved `MIN_DIST` meters.  This is the primary knob to turn for more/fewer packets.  A hex cell is about 340meters across, so the default 50.0 meter packet distance will send quite a few.  DC is incredibly cheap, but adjust to taste.
+If the Helium network resets state, or your device is out of sync, hold down the middle button to erase the last-joined state, and the device will start a fresh Join.
 
-This is the normal operation of the Mapper in motion.. every 50 meters, one ping reporting position, battery charging from USB to a steady 4.1+ volts.  If the speed of motion is fast, it may even result in back-to-back packet sends.
+When running, the Mapper will send out a packet every time GPS indicates it has moved `MIN_DIST` meters.  This is the primary knob to turn for more/fewer packets.  A Helium hex cell is about 340meters across, so the default 68-meter packet distance will send quite a few redundant packets for each mapped cell.  DC is incredibly cheap, but adjust to taste.
 
-When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat pin every `STATIONARY_TX_INTERVAL` seconds (default 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer timespan.
+This is the normal operation of the Mapper in motion.. every `MIN_DIST` meters, one ping reporting position, while the battery charges from USB to a steady 4.1+ volts.  If the speed of motion is fast, it may even result in back-to-back packet sends, limited by the bandwidth of your chosen Spreading Factor (Data Rate).
+
+When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat pin every `STATIONARY_TX_INTERVAL` seconds (default 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.
 
 After being stationary a long time (parked) with a decreasing battery voltage, we change to a slower pace of updates.  This happens after `REST_WAIT` seconds (default: 30 minutes).  In the Rest state, the Mapper transmits every `REST_TX_INTERVAL` seconds (default: 5 minutes).
 
-It stays in this REST state until motion resumes or USB power tops up the battery over `BATTERY_HI_VOLTAGE`.  If instead, the battery falls below `BATTERY_LOW_VOLTAGE`, the Mapper completely powers OFF.  It will power on and resume only when USB power appears.
+Eventually, the ~100mA power drain of the mapper runs the battery down below `BATTERY_LOW_VOLTAGE` volts, and the Mapper will save state and completely power off.
+It will power on and resume only when USB power appears.
 
-### Building
+### Buttons
+
+The TTGO T-Beam has three buttons on the underside.  Nearest the USB connector is the Power button.  A long press on this button will turn the unit completely off.
+The middle button can be pressed quickly to cause an immediate packet send.  A long press will erase the network state (discard Join) and re-Join.
+The button furthest from USB is the Reset button.  It instantly reboots the device, and is not handled by software at all.
+
+### Compiling the Software
 The fantastic state of PlatformIO tools makes it easiest to build and load your TTGO from source code; no pre-built binary is necessary.
 
 By default, the DevEUI is generated automatically to be unique to each unit, but you may want to hardcode it in `credentials.h` instead.
 
-I tested only on a LilyGo TTGO T-Beam v1.1 on **US915**.  If you have an older v0.7 board or different region, adjust the configuration to match.
+I tested this software only on a LilyGo TTGO T-Beam v1.1 on **US915**.  If you have an older v0.7 board or different region, adjust the configuration to match.
 
 ### Operation
+The device outputs debugging information on the USB Serial connection at 115200bps, including the network Credentials or any failures.
 On startup, the USB Serial port will print the DevEUI, AppID, and AppKey values, suitable for cut & paste entry into the Helium Console for your Device.
 
 The OLED screen is always on when operating (as it uses only 10mA), and displays alternating status in the top row:
-- `#ABC` is the last three hex digits of your DevEUI, so you can match it to the right device in Console.
+- `#ABC` is the last three hex digits of your DevEUI, so you can match it to the correct device in Console.
 - `4.10v` is the battery voltage
 - `48mA` is the charge or discharge current to the battery.  The TTGO charges the battery cell at around 750mA from USB, when possible.
 - Satellite Count is displayed on the right at all times.
 - Packet Count and Time of Day (UTC) alternate on the display line every 2 seconds.
 
-The lower part of the OLED screen shows a scrolling display of five messages.  Most often, it shows the Time and Distance between packet sends.
-`60s 5m Tx.. sent.`
+The second line shows the current operating parameters.. Time Interval, Distance Interval, and Spreading Factor / Data Rate.
+
+The lower part of the OLED screen shows a scrolling display of four messages.  Most often, it shows the Time and Distance between packet sends, and the trigger that caused the send: `T` for Time, `D` for Distance, or `>` for button press.
 
 ## Payload
-The Payload Port and byte content have been changed to match that in common use by CubeCell mappers: 
+The Payload Port and byte content have been selected to match that in common use by CubeCell mappers: 
 Lat, Long, Altitude, Speed, Battery, and Sats.  This common decoder function can now be used for both TTGO and CubeCell mappers:
 
 ```
@@ -133,42 +146,7 @@ Battery voltage cutoff can range from 2.0 to 4.5 volts.  If you set a cutoff hig
 
 None of the Downlink values persist across power-off & on; the device always reverts to compiled-in values on startup.
 
-# The remainder of this README is copied from earlier authors that developed this codebase:
-
--------------
-This well thought out README, original code, and the prior versions of code all have great people behind this and I have only sought to copy and revise it further for my own personal amusement and esthetics. 
-Here are the changes to the code:
-  - Added Helium Startup Logo
-  - Changed App Name and Version of device to reflect more of a device name and number scheme.
-  - Changed Text output to reflect Helium, and not TTN (Code referances ttn, just to prevent brakes in this awesome code)
-  - Changed credentials file to use OTAA by default.
-  - Changed GPS metric output text "Error", to "Accuracy/HDOP".
-      
-In no way do I claim to have created this code, or own it. 
-Proper gratitude is given to all that has worked on this before; and I am just the person that drunk the bottled water sitting on the throne. 
-The next person may edit and make this even greater, and hopefuly TLDR with proper credits.
--Fizzy
-
-Same as Fizzy I have not done any of the coding. My only idea with this fork is to make it easier for Newbies like me.
-    - Removing TTN references as it confused me
-    - Adding instructions where I found it hard to figure it out eg. Libraries
-    - Corrected some file edit paths
-
--------------
-
-Further modifications added by [tmiklas](https://github.com/tmiklas/tbeam-helium-mapper):
-
-**2021-11-18** - Introducing **distance target** mode (a.k.a. TX window scaling)
-
-Verison: `1.1-tm`
-
-Most mappers usually operate in **time target** mode, where they send data to network every set interval (i.e. `SEND_INTERVAL`). There is however a different use case for fast moving mappers - like in a car at motorway speeds...
-
-This feature allows you to switch mapping mode from time target to distace target and back. You can configure your desired distance target in `configuration.h` and turn ON/OFF by pressing the `USR` button for over 1sec:
-
-```
-#define DISTANCE_TARGET          200.0     // MUST be decimal number; distance target in meters
-```
+# The remainder of this README is parts copied from earlier authors that developed this codebase.  This may be out of date or no correct for this build:
 
 ![T-Beam buttons](img/t-beam-buttons.jpeg)
 
@@ -177,43 +155,6 @@ Once moving, you will be able to see it operating properly and reporting TX wind
 ![TX Window Scaling](img/TX-window-scaling.jpeg)
 
 In simple terms, with distance target set to 200m (as default in this code), window scaling starts working once you travel at speed over 10m/s (36k/h or 22.3mph). There's also a lower limit - do not transmit more often than every 2sec... so with 200m target you are good up to 100m/s (360k/h or 223mph) - good luck :-P
-
-**2021-11-14** - Added some new features
-
-Verison: `1.0-tm`
-
-> Send Now - transmit on deman by short-pressing 2nd button
-
-Reacts to short-press of the central button and overrides any travel distance requirement (see 2 below).
-Intended for use when you are just skimming the hex you want to light up and don't want to or can't wait
-for the usual 30sec cycle.
-
-> Not moving, not transmitting (configurable)
-
-Normally mapper sends location every 30sec, but if you are stationary, there location doesn't change (except possible GPS drift), so ongoing transmissions makes little if any sense, only burns DC. To avoid that, mapper will no longer report position every cycle unless it is actually moving or once every N cycles if stationary to say it's still alive and working.
-
-This is controlled by 2 variables in `configuration.h` file, `MIN_DIST` and `STATIONARY_TX_INTERVAL`.
-
-Example:
-
-```
-#define SEND_INTERVAL           (20 * 1000)     // Sleep for these many millis
-
-// -----------------------------------------------------------------------------
-// LoRa send criteria
-// -----------------------------------------------------------------------------
-#define MIN_DIST                 50.0      // MUST be decimal number; minimum distance in meters from the last sent location before we can send again. A hex is about 340m, divide by this value to get the pings per hex.
-#define STATIONARY_TX_INTERVAL   60        // If stationary the LoRa frame will be sent once every N cycles... with 20sec cycle, interval of 60 means to transmit once every 20min
-
-```
-
-With the default cycle time of 30sec means that mapper will transmit location if:
-
-- it has moved at least 50m from previously transmitted coordinates,
-- when it was stationary for 60 cycles (or 30 minutes),
-- ... or user short-pressed 2nd button, which ignores distance/time requirements
-
-
 
 -------------
 Ref: https://github.com/helium/longfi-arduino/tree/master/TTGO-TBeam-Tracker
@@ -256,28 +197,6 @@ NOTE: There are now 2 versions of the TTGO T-BEAM, the first version (Rev0) and 
 - detail for setting up a Cargo integration can be found [here](https://docs.helium.com/use-the-network/console/integrations/cargo).
 
 The specific details for adding a Mapper or Cargo integration use a different edge node device than the one detailed here. When prompted to add a function decoder, be sure to use the following decoder. Note: This decoder can also be found within this project in the console-decoders directory.
-
-```C
-function Decoder(bytes, port) {
-    var decoded = {};
-
-    decoded.latitude = ((bytes[0]<<16)>>>0) + ((bytes[1]<<8)>>>0) + bytes[2];
-    decoded.latitude = (decoded.latitude / 16777215.0 * 180) - 90;
-
-    decoded.longitude = ((bytes[3]<<16)>>>0) + ((bytes[4]<<8)>>>0) + bytes[5];
-    decoded.longitude = (decoded.longitude / 16777215.0 * 360) - 180;
-
-    var altValue = ((bytes[6]<<8)>>>0) + bytes[7];
-    var sign = bytes[6] & (1 << 7);
-    if(sign) decoded.altitude = 0xFFFF0000 | altValue;
-    else decoded.altitude = altValue;
-
-    decoded.hdop = bytes[8] / 10.0;
-    decoded.sats = bytes[9];
-    decoded.accuracy = bytes[8] / 10.0;
-    return decoded;
-}
-```
 
 7. Open this project file ```main/main.ino``` with the Arduino IDE Verify/Compile the project. If the compile is successful upload the application to your TTGO T-Beam.
 
