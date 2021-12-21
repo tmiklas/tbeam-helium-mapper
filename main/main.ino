@@ -431,8 +431,14 @@ void axp192Init() {
       pmu_irq = true;
     }, FALLING);
 
-    axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+    // Configure REG 36H: PEK press key parameter set.  Index values for argument!
+    axp.setStartupTime(2); // "Power on time": 512mS
+    axp.setlongPressTime(2); // "Long time key press time": 2S
+    axp.setShutdownTime(2); // "Power off time" = 8S
+    axp.setTimeOutShutdown(1); // "When key press time is longer than power off time, auto power off"
+
+    axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1); // Enable battery current measurements
+//    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
     axp.enableIRQ(0xFFFFFFFFFF, 1);  // See this nerd badge?  Give me all the interrupts you have.
     axp.clearIRQ();
   } else {
@@ -618,8 +624,8 @@ void loop() {
 
     if (axp.isPEKLongtPressIRQ()) // They want to turn OFF
     {
-      screen_print("Power OFF\n");
-      delay(2999); // Give some time to read the screen
+      screen_print("\nPOWER OFF...\n");
+      delay(4000); // Give some time to read the screen
       clean_shutdown();
     }
 
