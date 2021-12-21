@@ -401,19 +401,10 @@ void scanI2Cdevice(void)
 void axp192Init() {
   if (axp192_found) {
     if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
-      Serial.println("AXP192 Begin PASS");
+      // Serial.println("AXP192 Begin PASS");
     } else {
-      Serial.println("AXP192 Begin FAIL");
+      Serial.println("axp.begin() FAIL");
     }
-  #if 0
-    Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("LDO3: %s\n", axp.isLDO3Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
-    Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
-    Serial.println("----------------------------------------");
-#endif
 
     axp.setPowerOutPut(AXP192_LDO2, AXP202_ON); // LORA radio
     axp.setPowerOutPut(AXP192_LDO3, AXP202_ON); // GPS main power
@@ -425,7 +416,7 @@ void axp192Init() {
     axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
     //axp.setChgLEDMode(AXP20X_LED_OFF);
 
-
+#if 0
     Serial.printf("DCDC1: %s\n", axp.isDCDC1Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC2: %s\n", axp.isDCDC2Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("DCDC3: %s\n", axp.isDCDC3Enable() ? "ENABLE" : "DISABLE");
@@ -433,6 +424,7 @@ void axp192Init() {
     Serial.printf("LDO2: %s\n", axp.isLDO2Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("LDO3: %s\n", axp.isLDO3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
+#endif
 
     pinMode(PMU_IRQ, INPUT_PULLUP);
     attachInterrupt(PMU_IRQ, [] {
@@ -497,15 +489,14 @@ void setup() {
 
   // Show logo on first boot after removing battery
 #ifndef ALWAYS_SHOW_LOGO
-  if (bootCount == 0) {
+  if (bootCount <= 1)
 #endif
+  {
     screen_print(APP_NAME " " APP_VERSION, 0, 0);
     screen_show_logo();
     screen_update();
     delay(LOGO_DELAY);
-#ifndef ALWAYS_SHOW_LOGO
   }
-#endif
 
   // Helium setup
   if (!ttn_setup()) {

@@ -58,7 +58,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Less common Configuration iteams
 // -----------------------------------------------------------------------------
 
-#define ALWAYS_SHOW_LOGO                        // It's a great logo.  Display it with pride.
+//#define ALWAYS_SHOW_LOGO                        // It's a great logo.  Display it with pride.
 #define LOGO_DELAY              2000            // Time to show logo on first boot (ms)
 
 #define DEBUG_PORT              Serial          // Serial debug port
