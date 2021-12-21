@@ -624,7 +624,8 @@ void loop() {
 
     if (axp.isPEKLongtPressIRQ()) // They want to turn OFF
     {
-      screen_print("\nPOWER OFF...\n");
+      screen_print("POWER OFF...\n");
+      screen_update();
       delay(4000); // Give some time to read the screen
       clean_shutdown();
     }
