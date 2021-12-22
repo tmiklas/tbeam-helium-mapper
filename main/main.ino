@@ -208,7 +208,7 @@ bool trySend()
   bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
   if (confirmed) {
     Serial.println("ACK requested");
-    screen_print("?\a");
+    screen_print("? ");
     digitalWrite(RED_LED, LOW); // Light LED
     ack_req++;
   }
@@ -298,7 +298,7 @@ void lora_msg_callback(uint8_t message)
   }
 
   if (EV_TXSTART == message) {
-    screen_print("+\a");
+    screen_print("+ ");
     screen_update();
   }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
@@ -312,7 +312,7 @@ void lora_msg_callback(uint8_t message)
     digitalWrite(RED_LED, HIGH);
     ack_rx++;
     Serial.printf("ACK! %lu / %lu\n", ack_rx, ack_req);
-    screen_print("!\a");
+    screen_print("! ");
   }
 
   if (EV_RXCOMPLETE == message || EV_RESPONSE == message) {
