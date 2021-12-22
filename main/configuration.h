@@ -41,7 +41,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define BATTERY_LOW_VOLTAGE     3.4             // Below this voltage, power off until USB power allows charging
 
 #define LORAWAN_PORT            2               // FPort for Uplink messages -- must match Helium Console Decoder script!
-#define LORAWAN_CONFIRMED_EVERY 0               // Send confirmed message for ACK every N messages (0 means never, 1 means always)
+#define LORAWAN_CONFIRMED_EVERY 2               // Send confirmed message for ACK every N messages (0 means never, 1 means always, 2 every-other-one..)
 #define LORAWAN_SF              DR_SF7          // Spreading factor (recommended DR_SF7 for network map purposes, DR_SF10 is slower/more-reach)
 
 // Uncomment to enable discarding network settings by long pressing second button
@@ -107,9 +107,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define LED_PIN         14
 #define MIDDLE_BUTTON_PIN      39
 #elif defined(T_BEAM_V10)
-#define MIDDLE_BUTTON_PIN      38 // Middle button SW5
+#define MIDDLE_BUTTON_PIN      38 // Middle button SW5, BUTTON0, GPIO38.  Low active
 #endif
 
+#define RED_LED         4       // GPIO4 on T-Beam v1.1
 // -----------------------------------------------------------------------------
 // OLED
 // -----------------------------------------------------------------------------

@@ -80,6 +80,8 @@ esp_sleep_source_t wakeCause; // the reason we booted this time
 
 char buffer[40]; // Screen buffer
 
+unsigned long int ack_req = 0;
+unsigned long int ack_rx = 0;
 
 // Same format as CubeCell mappers
 void buildPacket(uint8_t txBuffer[]) 
@@ -186,25 +188,34 @@ bool trySend()
   }
 
   // SEND a Packet!
+  digitalWrite(RED_LED, LOW);
 
   // The first distance-moved is crazy, since has no origin.. don't put it on screen.
-  if (dist_moved < 1000000) {
-    snprintf(buffer, sizeof(buffer), "%c %4lus %4.0fm ",
+  if (dist_moved > 1000000)
+    dist_moved = 0;
+
+  snprintf(buffer, sizeof(buffer), "\n%d %c %4lus %4.0fm ",
+             ttn_get_count(),
              because,
              (now_millis - last_send_millis) / 1000,
              dist_moved);
-    screen_print(buffer);
-  }
+  screen_print(buffer);
 
   // prepare the LoRa frame
   buildPacket(txBuffer);
 
   // Want an ACK on this one?
   bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
-  if (confirmed)
+  if (confirmed) {
     Serial.println("ACK requested");
+    screen_print("?\a");
+    digitalWrite(RED_LED, LOW); // Light LED
+    ack_req++;
+  }
 
   // send it!
+  // Set data rate (SF) and transmit power for uplink
+  ttn_sf(LORAWAN_SF);
   packetQueued = true;
   ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
   last_send_millis = now_millis;
@@ -287,13 +298,21 @@ void lora_msg_callback(uint8_t message)
   }
 
   if (EV_TXSTART == message) {
-    screen_print("TX\n");
+    screen_print("+\a");
+    screen_update();
   }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
 //    screen_print("sent.\n");
     packetQueued = false;
     axp.setChgLEDMode(AXP20X_LED_OFF);
+  }
+
+  if (EV_ACK == message) {
+    digitalWrite(RED_LED, HIGH);
+    ack_rx++;
+    Serial.printf("ACK! %lu / %lu\n", ack_rx, ack_req);
+    screen_print("!\a");
   }
 
   if (EV_RXCOMPLETE == message || EV_RESPONSE == message) {
@@ -459,7 +478,7 @@ void wakeup() {
       wakeButtons = ((uint64_t)1) << buttons.gpios[0];
   */
 
-  Serial.printf("booted, wake cause %d (boot count %d)\n", wakeCause, bootCount);
+  Serial.printf("Wake cause %d (boot count %d)\n", wakeCause, bootCount);
 }
 
 
@@ -478,6 +497,8 @@ void setup() {
 
   // Buttons & LED
   pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(RED_LED, OUTPUT);
+  digitalWrite(RED_LED, HIGH); // Off
 
   // Hello
   DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
@@ -625,14 +646,13 @@ void loop() {
     if (axp.isPEKLongtPressIRQ()) // They want to turn OFF
     {
       screen_print("POWER OFF...\n");
-      screen_update();
       delay(4000); // Give some time to read the screen
       clean_shutdown();
     }
 
     axp.clearIRQ();
 
-    snprintf(buffer, sizeof(buffer), "%s\n", irq_name);
+    snprintf(buffer, sizeof(buffer), "\n%s ", irq_name);
     screen_print(buffer);
   }
 

@@ -230,26 +230,24 @@ static void initCount() {
   }
 }
 
-u1_t ttn_current_dr (void) {
-    return LMIC.datarate;
-}
 
-const char *ttn_sf_name (u1_t dr) {
-    switch(dr)
-    {
-        case DR_SF10:
-            return "SF10 DR0";
-        case DR_SF9:
-            return "SF9 DR1";
-        case DR_SF8:
-            return "SF8 DR2";
-        case DR_SF7:
-            return "SF7 DR3";
-        default:
-            return "SF?? DR?";
-     }
+void ttn_sf_name (char *b, size_t len) {
+    u1_t sf = getSf(LMIC.rps) + 6; // 1 == SF7
+    u1_t bw = getBw(LMIC.rps);
+    // u1_t cr = getCr(LMIC.rps);
+    /* 
+    snprintf(b, len, "%3d.%02d SF%d BW%d",
+             LMIC.freq / 1000000,
+             (LMIC.freq % 1000000) / 10000,
+             sf,
+             bw == BW125 ? 125 : (bw == BW250 ? 250 : 500)
+             ); */
+    snprintf(b, len, "SF%d BW%d",
+             sf,
+             bw == BW125 ? 125 : (bw == BW250 ? 250 : 500)
+             );
+    // Serial.println(b);
 }
-
 
 bool ttn_setup() {
     initCount();

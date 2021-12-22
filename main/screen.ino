@@ -50,9 +50,9 @@ void _screen_header() {
     else
     {
         // Message count and time
-        snprintf(buffer, sizeof(buffer), "%4d", ttn_get_count() % 10000);
-        display->setTextAlignment(TEXT_ALIGN_LEFT);
-        display->drawString(0, 2, buffer);
+        //snprintf(buffer, sizeof(buffer), "%4d", ttn_get_count() % 10000);
+        //display->setTextAlignment(TEXT_ALIGN_LEFT);
+        //display->drawString(0, 2, buffer);
 
         gps_time(buffer, sizeof(buffer));
     }
@@ -66,14 +66,19 @@ void _screen_header() {
     display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT, SATELLITE_IMAGE);
 
     // Second row.  So dirty; don't judge:
-    u1_t ttn_current_dr(void);
-    const char *ttn_sf_name(u1_t dr);
+    // void ttn_sf_name(char *, size_t);
     extern float min_dist_moved;
     extern unsigned long int tx_interval_ms;
 
-    snprintf(buffer, sizeof(buffer), "-- %lus %.0fm %s --", tx_interval_ms / 1000, min_dist_moved, ttn_sf_name(ttn_current_dr()));
+    snprintf(buffer, sizeof(buffer), "%lus %.0fm", tx_interval_ms / 1000, min_dist_moved);
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->drawString(0, 12, buffer);
+
+    ttn_sf_name(buffer, sizeof(buffer));
+    display->setTextAlignment(TEXT_ALIGN_RIGHT);
+    display->drawString(display->getWidth(), 12, buffer);
+    
+    display->drawHorizontalLine(0, SCREEN_HEADER_HEIGHT, display->getWidth());
 }
 
 void screen_show_logo() {
@@ -116,7 +121,7 @@ void screen_print(const char * text, uint8_t x, uint8_t y) {
 }
 
 void screen_print(const char * text) {
-    Serial.printf("Screen: %s", text);
+    Serial.printf("Screen: %s\n", text);
     if(!display) return;
 
     display->print(text);
@@ -139,7 +144,7 @@ void screen_setup() {
     display->setFont(Custom_ArialMT_Plain_10);
 
     // Scroll buffer
-    display->setLogBuffer(5, 30);
+    display->setLogBuffer(4, 30);
 }
 
 void screen_loop() {
