@@ -188,7 +188,7 @@ bool trySend()
   }
 
   // SEND a Packet!
-  digitalWrite(RED_LED, LOW);
+  // digitalWrite(RED_LED, LOW);
 
   // The first distance-moved is crazy, since has no origin.. don't put it on screen.
   if (dist_moved > 1000000)
