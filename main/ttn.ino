@@ -230,7 +230,6 @@ static void initCount() {
   }
 }
 
-
 void ttn_sf_name (char *b, size_t len) {
     u1_t sf = getSf(LMIC.rps) + 6; // 1 == SF7
     u1_t bw = getBw(LMIC.rps);
@@ -454,14 +453,17 @@ void ttn_erase_prefs() {
     }
 }
 
-void ttn_send(uint8_t * data, uint8_t data_size, uint8_t port, bool confirmed){
+boolean ttn_send(uint8_t * data, uint8_t data_size, uint8_t port, bool confirmed){
     ttn_set_cnt(); // we are about to send using the current packet count
 
     // Check if there is not a current TX/RX job running
     if (LMIC.opmode & OP_TXRXPEND) {
         _ttn_callback(EV_PENDING);
-        return;
+        return false;
     }
+
+    // Set data rate (SF) for Uplink, as it might have changed during last Tx
+    ttn_sf(LORAWAN_SF);
 
     // Prepare upstream data transmission at the next possible time.
     // Parameters are port, data, length, confirmed
@@ -469,6 +471,7 @@ void ttn_send(uint8_t * data, uint8_t data_size, uint8_t port, bool confirmed){
 
     _ttn_callback(EV_QUEUED);
     count++;
+    return true;
 }
 
 void ttn_loop() {

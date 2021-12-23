@@ -65,18 +65,13 @@ void _screen_header() {
     display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, itoa(gps_sats(), buffer, 10));
     display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT, SATELLITE_IMAGE);
 
-    // Second row.  So dirty; don't judge:
-    // void ttn_sf_name(char *, size_t);
-    extern float min_dist_moved;
-    extern unsigned long int tx_interval_ms;
-
+    // Second status row: 
     snprintf(buffer, sizeof(buffer), "%lus %.0fm", tx_interval_ms / 1000, min_dist_moved);
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->drawString(0, 12, buffer);
 
-    ttn_sf_name(buffer, sizeof(buffer));
     display->setTextAlignment(TEXT_ALIGN_RIGHT);
-    display->drawString(display->getWidth(), 12, buffer);
+    display->drawString(display->getWidth(), 12, cached_sf_name);
     
     display->drawHorizontalLine(0, SCREEN_HEADER_HEIGHT, display->getWidth());
 }

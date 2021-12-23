@@ -100,7 +100,7 @@ void gps_setup(void) {
     Serial.println("Could not connect to GPS. Retrying all speeds...");
   } while (1);
 
-  myGNSS.setUART1Output(COM_TYPE_NMEA); // Set the UART port to output UBX only
+  myGNSS.setUART1Output(COM_TYPE_NMEA); // We do want NMEA
   
   if (0)
     myGNSS.factoryReset();

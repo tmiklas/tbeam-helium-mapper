@@ -79,6 +79,7 @@ RTC_DATA_ATTR int bootCount = 0;
 esp_sleep_source_t wakeCause; // the reason we booted this time
 
 char buffer[40]; // Screen buffer
+char cached_sf_name[40]; // Last SF/BW Transmitted at
 
 unsigned long int ack_req = 0;
 unsigned long int ack_rx = 0;
@@ -152,17 +153,21 @@ bool trySend()
   if (! LMIC_queryTxReady())
     return false;
 
-  // distance from last transmitted location
-  float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, now_lat, now_long);
-  
-  #if 0
+  // Check if there is not a current TX/RX job running
+  if (LMIC.opmode & OP_TXRXPEND)
+    return false;
+
+     // distance from last transmitted location
+   float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, now_lat, now_long);
+
+#if 0
   snprintf(buffer, sizeof(buffer), "Lat: %10.6f\n", gps_latitude());
   screen_print(buffer);
   snprintf(buffer, sizeof(buffer), "Long: %10.6f\n", gps_longitude());
   screen_print(buffer);
   snprintf(buffer, sizeof(buffer), "HDOP: %4.2fm\n", gps_hdop());
   screen_print(buffer);
-  #endif
+#endif
 
   char because = '?';
   if (justSendNow)
@@ -214,10 +219,13 @@ bool trySend()
   }
 
   // send it!
-  // Set data rate (SF) and transmit power for uplink
-  ttn_sf(LORAWAN_SF);
+
   packetQueued = true;
-  ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed);
+  if (!ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed)) {
+    Serial.println("Surprise send failure!");
+    return false;
+  }
+
   last_send_millis = now_millis;
   last_send_lat = now_lat;
   last_send_lon = now_long;
@@ -298,14 +306,18 @@ void lora_msg_callback(uint8_t message)
   }
 
   if (EV_TXSTART == message) {
-    screen_print("+ ");
+    ttn_sf_name(buffer, sizeof(buffer));
+    strncpy(cached_sf_name, buffer, sizeof(cached_sf_name));
+
+    screen_print("+\a");
     screen_update();
   }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
 //    screen_print("sent.\n");
     packetQueued = false;
-    axp.setChgLEDMode(AXP20X_LED_OFF);
+    if (axp192_found)
+      axp.setChgLEDMode(AXP20X_LED_OFF);
   }
 
   if (EV_ACK == message) {
@@ -321,7 +333,7 @@ void lora_msg_callback(uint8_t message)
     uint8_t port;
     ttn_response(&port, data, len);
 
-    snprintf(buffer, sizeof(buffer), "Rx: %d on P%d\n", len, port);
+    snprintf(buffer, sizeof(buffer), "\nRx: %d on P%d\n", len, port);
     screen_print(buffer);
 
     Serial.print("Downlink on port:");
@@ -341,7 +353,7 @@ void lora_msg_callback(uint8_t message)
       float new_distance = (float)(data[0] << 8 | data[1]);
       if (new_distance > 0.0) {
         min_dist_moved = new_distance;
-        snprintf(buffer, sizeof(buffer), "New Dist: %.0fm\n", new_distance);
+        snprintf(buffer, sizeof(buffer), "\nNew Dist: %.0fm\n", new_distance);
         screen_print(buffer);
       }
 
@@ -354,14 +366,14 @@ void lora_msg_callback(uint8_t message)
           tx_interval_ms = new_interval * 1000;
           freeze_tx_interval_ms = true;
         }
-        snprintf(buffer, sizeof(buffer), "New Time: %.0lus\n", new_interval);
+        snprintf(buffer, sizeof(buffer), "\nNew Time: %.0lus\n", new_interval);
         screen_print(buffer);
       }
 
       if (data[4]) {
         float new_low_voltage = data[4] / 100.00 + 2.00;
         battery_low_voltage = new_low_voltage;
-        snprintf(buffer, sizeof(buffer), "New LowBat: %.2fv\n", new_low_voltage);
+        snprintf(buffer, sizeof(buffer), "\nNew LowBat: %.2fv\n", new_low_voltage);
         screen_print(buffer);
       }
     }
@@ -423,6 +435,8 @@ void axp192Init() {
       // Serial.println("AXP192 Begin PASS");
     } else {
       Serial.println("axp.begin() FAIL");
+      axp192_found = false;
+      return;
     }
 
     axp.setPowerOutPut(AXP192_LDO2, AXP202_ON); // LORA radio
@@ -456,8 +470,33 @@ void axp192Init() {
     axp.setShutdownTime(2); // "Power off time" = 8S
     axp.setTimeOutShutdown(1); // "When key press time is longer than power off time, auto power off"
 
+    //Serial.printf("AC IN: %fv\n", axp.getAcinVoltage());
+    //Serial.printf("Vbus: %fv\n", axp.getVbusVoltage());
+    Serial.printf("Temp %0.2f°C\n", axp.getTemp());
+    //Serial.printf("TSTemp %f°C\n", axp.getTSTemp());
+    //Serial.printf("GPIO0 %fv\n", axp.getGPIO0Voltage());
+    //Serial.printf("GPIO1 %fv\n", axp.getGPIO1Voltage());
+    //Serial.printf("Batt In: %fmW\n", axp.getBattInpower());
+    Serial.printf("Batt: %0.3fv\n", axp.getBattVoltage()/1000.0);
+    Serial.printf("SysIPSOut: %fv\n", axp.getSysIPSOUTVoltage());
+    Serial.printf("isVBUSPlug? %s\n", axp.isVBUSPlug() ? "Yes" : "No");
+    Serial.printf("isChargingEnable? %s\n", axp.isChargeingEnable() ? "Yes" : "No");
+    Serial.printf("ChargeCurrent: %.2fmA\n", axp.getSettingChargeCurrent());
+    Serial.printf("ChargeControlCurrent: %d\n", axp.getChargeControlCur());
+    Serial.printf("Charge: %d%%\n", axp.getBattPercentage());
+    Serial.printf("PowerDownVoltage: %d mV\n", axp.getPowerDownVoltage());
+    Serial.printf("WarningLevel1: %d mV\n", axp.getVWarningLevel1());
+    Serial.printf("WarningLevel2: %d mV\n", axp.getVWarningLevel2());
+    
+    Serial.printf("DCDC1Voltage: %d mV\n", axp.getDCDC1Voltage());
+    Serial.printf("DCDC2Voltage: %d mV\n", axp.getDCDC2Voltage());
+    Serial.printf("DCDC3Voltage: %d mV\n", axp.getDCDC3Voltage());
+    Serial.printf("LDO2: %d mV\n", axp.getLDO2Voltage());
+    Serial.printf("LDO3: %d mV\n", axp.getLDO3Voltage());
+    Serial.printf("LDO4: %d mV\n", axp.getLDO4Voltage());
+
     axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1); // Enable battery current measurements
-//    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+                                             //    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
     axp.enableIRQ(0xFFFFFFFFFF, 1);  // See this nerd badge?  Give me all the interrupts you have.
     axp.clearIRQ();
   } else {
@@ -548,9 +587,14 @@ void clean_shutdown (void)
 {
     LMIC_shutdown(); // cleanly shutdown the radio
     ttn_write_prefs();
-    axp.setChgLEDMode(AXP20X_LED_OFF);  // Surprisingly sticky if you don't set it
+    if (axp192_found) {
+      axp.setChgLEDMode(AXP20X_LED_OFF);  // Surprisingly sticky if you don't set it
 
-    axp.shutdown(); // PMIC power off
+      axp.shutdown(); // PMIC power off
+    } else {
+      while (1)
+        ; // ?? What to do here
+    }
 }
 
 void update_activity()
@@ -559,10 +603,10 @@ void update_activity()
   float charge_ma = axp.getBattChargeCurrent();
   // float discharge_ma = axp.getBatChargeCurrent();
 
-  if (axp.isBatteryConnect() && bat_volts < battery_low_voltage && charge_ma < 99.0)
+  if (axp192_found && axp.isBatteryConnect() && bat_volts < battery_low_voltage && charge_ma < 99.0)
   {
     Serial.println("Low Battery OFF");
-    screen_print("Low Battery OFF\n");
+    screen_print("\nLow Battery OFF\n");
     delay(4999); // Give some time to read the screen
     clean_shutdown();
   }
@@ -645,7 +689,7 @@ void loop() {
 
     if (axp.isPEKLongtPressIRQ()) // They want to turn OFF
     {
-      screen_print("POWER OFF...\n");
+      screen_print("\nPOWER OFF...\n");
       delay(4000); // Give some time to read the screen
       clean_shutdown();
     }
@@ -669,7 +713,7 @@ void loop() {
       // held long enough
       Serial.println("Long press!");
 
-      screen_print("Discarding prefs!\n");
+      screen_print("\nFlushing Prefs!\n");
       ttn_erase_prefs();
       delay(5000); // Give some time to read the screen
       ESP.restart();
@@ -684,7 +728,8 @@ void loop() {
 
   if (trySend()) {
       // Good send
-      axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
+      if (axp192_found)
+        axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
   } else {
       // Nothing sent. 
       // Do NOT delay() here.. the LoRa receiver and join housekeeping also needs to run!
