@@ -37,6 +37,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "configuration.h"
 #include "credentials.h"
 
+dr_t ttn_tx_sf = LORAWAN_SF;
+void ttn_sf(dr_t sf);
 
 // -----------------------------------------------------------------------------
 // Globals
@@ -99,7 +101,7 @@ void forceTxSingleChannelDr() {
 #endif
 
   // Set data rate (SF) and transmit power for uplink
-  ttn_sf(LORAWAN_SF);
+  ttn_sf(ttn_tx_sf);
 }
 
 // DevEUI generator using devices's MAC address - from https://github.com/cyberman54/ESP32-Paxcounter/blob/master/src/lorawan.cpp
@@ -121,7 +123,8 @@ void gen_lora_deveui(uint8_t* pdeveui) {
 
 static void printHex2(unsigned v) {
   v &= 0xff;
-  if (v < 16) Serial.print('0');
+  if (v < 16)
+    Serial.print('0');
   Serial.print(v, HEX);
 }
 
@@ -130,14 +133,18 @@ static void printHex2(unsigned v) {
 void initDevEUI() {
   bool needInit = true;
   for (int i = 0; i < sizeof(DEVEUI); i++)
-    if (DEVEUI[i]) needInit = false;
+    if (DEVEUI[i])
+      needInit = false;
 
-  if (needInit) gen_lora_deveui(DEVEUI);
+  if (needInit)
+    gen_lora_deveui(DEVEUI);
 }
 #endif
 
 // LMIC library will call this method when an event is fired
-void ttn_onEvent(ev_t event) {
+// *** MAGIC FUNCTION NAME ***
+// *** DO NOT CHANGE ***
+void onEvent(ev_t event) {  // <<<< Very Specific Name here for lmic.c
   switch (event) {
     case EV_JOINED: {
 #ifdef SINGLE_CHANNEL_GATEWAY
@@ -164,13 +171,15 @@ void ttn_onEvent(ev_t event) {
       Serial.println(devaddr, HEX);
       Serial.print("AppSKey: ");
       for (size_t i = 0; i < sizeof(artKey); ++i) {
-        if (i != 0) Serial.print("-");
+        if (i != 0)
+          Serial.print("-");
         printHex2(artKey[i]);
       }
       Serial.println("");
       Serial.print("NwkSKey: ");
       for (size_t i = 0; i < sizeof(nwkKey); ++i) {
-        if (i != 0) Serial.print("-");
+        if (i != 0)
+          Serial.print("-");
         printHex2(nwkKey[i]);
       }
       Serial.println();
@@ -219,7 +228,8 @@ size_t ttn_response_len() {
 }
 
 void ttn_response(uint8_t* port, uint8_t* buffer, size_t len) {
-  if (port) *port = LMIC.frame[LMIC.dataBeg - 1];
+  if (port)
+    *port = LMIC.frame[LMIC.dataBeg - 1];
   for (uint8_t i = 0; i < LMIC.dataLen; i++) {
     buffer[i] = LMIC.frame[LMIC.dataBeg + i];
   }
@@ -234,21 +244,6 @@ static void initCount() {
       p.end();
     }
   }
-}
-
-void ttn_sf_name(char* b, size_t len) {
-  u1_t sf = getSf(LMIC.rps) + 6;  // 1 == SF7
-  u1_t bw = getBw(LMIC.rps);
-  // u1_t cr = getCr(LMIC.rps);
-  /*
-  snprintf(b, len, "%3d.%02d SF%d BW%d",
-           LMIC.freq / 1000000,
-           (LMIC.freq % 1000000) / 10000,
-           sf,
-           bw == BW125 ? 125 : (bw == BW250 ? 250 : 500)
-           ); */
-  snprintf(b, len, "SF%d BW%d", sf, bw == BW125 ? 125 : (bw == BW250 ? 250 : 500));
-  // Serial.println(b);
 }
 
 bool ttn_setup() {
@@ -406,8 +401,33 @@ void ttn_join() {
 #endif
 }
 
-void ttn_sf(unsigned char sf) {
-  // Serial.printf("Setting SF to %s\n", ttn_sf_name(sf));
+void ttn_get_sf_name(char* b, size_t len) {
+  rps_t txrps = dndr2rps(ttn_tx_sf);
+
+  u1_t sf, bw;
+  sf = getSf(txrps) + 6;  // 1 == SF7
+  bw = getBw(txrps);
+  
+  /*
+  snprintf(b, len, "%3d.%02d SF%d BW%d",
+           LMIC.freq / 1000000,
+           (LMIC.freq % 1000000) / 10000,
+           sf,
+           bw == BW125 ? 125 : (bw == BW250 ? 250 : 500)
+           );
+  Serial.println(b);
+  */
+  snprintf(b, len, "SF%d BW%d", sf, bw == BW125 ? 125 : (bw == BW250 ? 250 : 500));
+  // Serial.println(b);
+}
+
+void ttn_set_sf(dr_t sf) {
+  ttn_tx_sf = sf;
+  ttn_sf(ttn_tx_sf);
+}
+
+void ttn_sf(dr_t sf) {
+  // Serial.printf("Setting SF to %d\n", sf);
   LMIC_setDrTxpow(sf, 14);
 }
 
@@ -461,7 +481,7 @@ boolean ttn_send(uint8_t* data, uint8_t data_size, uint8_t port, bool confirmed)
   }
 
   // Set data rate (SF) for Uplink, as it might have changed during last Tx
-  ttn_sf(LORAWAN_SF);
+  ttn_sf(ttn_tx_sf);
 
   // Prepare upstream data transmission at the next possible time.
   // Parameters are port, data, length, confirmed

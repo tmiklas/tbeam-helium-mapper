@@ -52,7 +52,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
 #define APP_NAME "Helium TTGO"
-#define APP_VERSION "1.5.7 MaxP"
+#define APP_VERSION "1.6.1 MaxP"
 
 // -----------------------------------------------------------------------------
 // Less common Configuration iteams

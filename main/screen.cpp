@@ -38,7 +38,8 @@ SSD1306Wire *display;
 uint8_t _screen_line = SCREEN_HEADER_HEIGHT - 1;
 
 void screen_show_logo() {
-  if (!display) return;
+  if (!display)
+    return;
 
   uint8_t x = (display->getWidth() - TTN_IMAGE_WIDTH) / 2;
   uint8_t y = SCREEN_HEADER_HEIGHT + (display->getHeight() - SCREEN_HEADER_HEIGHT - TTN_IMAGE_HEIGHT) / 2 + 1;
@@ -46,19 +47,22 @@ void screen_show_logo() {
 }
 
 void screen_off() {
-  if (!display) return;
+  if (!display)
+    return;
 
   display->displayOff();
 }
 
 void screen_on() {
-  if (!display) return;
+  if (!display)
+    return;
 
   display->displayOn();
 }
 
 void screen_clear() {
-  if (!display) return;
+  if (!display)
+    return;
 
   display->clear();
 }
@@ -66,7 +70,8 @@ void screen_clear() {
 void screen_print(const char *text, uint8_t x, uint8_t y, uint8_t alignment) {
   DEBUG_MSG(text);
 
-  if (!display) return;
+  if (!display)
+    return;
 
   display->setTextAlignment((OLEDDISPLAY_TEXT_ALIGNMENT)alignment);
   display->drawString(x, y, text);
@@ -78,7 +83,8 @@ void screen_print(const char *text, uint8_t x, uint8_t y) {
 
 void screen_print(const char *text) {
   Serial.printf("Screen: %s\n", text);
-  if (!display) return;
+  if (!display)
+    return;
 
   display->print(text);
   if (_screen_line + 8 > display->getHeight()) {
@@ -89,7 +95,8 @@ void screen_print(const char *text) {
 }
 
 void screen_update() {
-  if (display) display->display();
+  if (display)
+    display->display();
 }
 
 void screen_setup() {
@@ -107,7 +114,8 @@ void screen_setup() {
 extern AXP20X_Class axp;  // TODO: This is evil
 
 void screen_header(unsigned long int tx_interval_ms, float min_dist_moved, char *cached_sf_name, int sats) {
-  if (!display) return;
+  if (!display)
+    return;
 
   char buffer[40];
 
@@ -147,11 +155,29 @@ void screen_header(unsigned long int tx_interval_ms, float min_dist_moved, char 
   display->drawHorizontalLine(0, SCREEN_HEADER_HEIGHT, display->getWidth());
 }
 
-void screen_loop(unsigned long int tx_interval_ms, float min_dist_moved, char *cached_sf_name, int sats) {
-  if (!display) return;
+#define MARGIN 15
+void screen_loop(unsigned long int tx_interval_ms, float min_dist_moved, char *cached_sf_name, int sats, boolean in_menu, const char *menu_prev,
+                 const char *menu_cur, const char *menu_next, boolean highlighted) {
+  if (!display)
+    return;
 
   display->clear();
   screen_header(tx_interval_ms, min_dist_moved, cached_sf_name, sats);
-  display->drawLogBuffer(0, SCREEN_HEADER_HEIGHT);
+
+  if (in_menu) {
+    char buffer[40];
+
+    display->setTextAlignment(TEXT_ALIGN_CENTER);
+    display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 5, menu_prev);
+
+    display->drawHorizontalLine(MARGIN, SCREEN_HEADER_HEIGHT + 16, display->getWidth() - MARGIN * 2);
+    snprintf(buffer, sizeof(buffer), highlighted ? ">>> %s <<<" : "%s", menu_cur);
+    display->drawHorizontalLine(MARGIN, SCREEN_HEADER_HEIGHT + 28, display->getWidth() - MARGIN * 2);
+    display->drawVerticalLine(MARGIN, SCREEN_HEADER_HEIGHT + 16, 28-16);
+    display->drawVerticalLine(display->getWidth() - MARGIN, SCREEN_HEADER_HEIGHT + 16, 28-16);
+    display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 16, buffer);
+    display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 28, menu_next);
+  } else
+    display->drawLogBuffer(0, SCREEN_HEADER_HEIGHT);
   display->display();
 }

@@ -1,4 +1,15 @@
 /*
+ Helium Mapper build for LilyGo TTGO T-Beam v0.7, v1.0, and v1.1 boards.
+ Copyright (C) 2021 by Max-Plastix
+
+ This is a development fork by Max-Plastix hosted here:
+ https://github.com/Max-Plastix/tbeam-helium-mapper/
+
+ This code comes from a number of developers and earlier efforts, visible in the lineage on Github and prior comments below.
+ GPL makes this all possible -- continue to modify, extend, and share!
+ */
+
+/*
   This module and those attached with it have been modified for the Helium Network by Fizzy. The following has been changed from the original modifications for
   Helium, by longfi-arduino:
   - Added Helium Startup Logo
@@ -9,13 +20,6 @@
   - Changed GPS metric output text "Error", to "Accuracy/HDOP".
 */
 /*
-  Modifications by Max-Plastix
-  - DevEUI is auto-generated per-device
-  - Print all three ID values to console at boot, in a format that pastes into Helium Console.
-  - Change Payload to #2 and match CubeCell Mapper format, including battery voltage. (Shared decoder with CubeCell)
-*/
-/*
-
   Main module
 
   # Modified by Kyle T. Gabriel to fix issue with incorrect GPS data for TTNMapper
@@ -34,7 +38,6 @@
 
   You should have received a copy of the GNU General Public License
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 */
 
 #include <Arduino.h>
@@ -48,7 +51,6 @@
 #include "sleep.h"
 #include "ttn.h"
 
-
 // Defined in ttn.ino
 void ttn_register(void (*callback)(uint8_t message));
 
@@ -61,7 +63,7 @@ float dist_moved = 0;
 
 /* Defaults that can be overwritten by downlink messages */
 unsigned long int tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
-boolean freeze_tx_interval_ms = false;
+boolean freeze_tx_interval = false;
 float battery_low_voltage = BATTERY_LOW_VOLTAGE;
 float min_dist_moved = MIN_DIST;
 
@@ -83,14 +85,15 @@ RTC_DATA_ATTR int bootCount = 0;
 esp_sleep_source_t wakeCause;  // the reason we booted this time
 
 char buffer[40];  // Screen buffer
-char cached_sf_name[40];
+
+dr_t lorawan_sf = LORAWAN_SF;
+char sf_name[40];
 
 unsigned long int ack_req = 0;
 unsigned long int ack_rx = 0;
 
 // Same format as CubeCell mappers
 void buildPacket(uint8_t txBuffer[]) {
-  char t[32];  // used to sprintf for Serial output
   uint32_t LatitudeBinary;
   uint32_t LongitudeBinary;
   uint16_t altitudeGps;
@@ -104,14 +107,14 @@ void buildPacket(uint8_t txBuffer[]) {
   speed = (uint16_t)gps_speed();  // convert from float
   sats = gps_sats();
 
-  sprintf(t, "Lat: %f, ", gps_latitude());
-  Serial.print(t);
-  sprintf(t, "Long: %f, ", gps_longitude());
-  Serial.print(t);
-  sprintf(t, "Alt: %f, ", gps_altitude());
-  Serial.print(t);
-  sprintf(t, "Sats: %d", sats);
-  Serial.println(t);
+  sprintf(buffer, "Lat: %f, ", gps_latitude());
+  Serial.print(buffer);
+  sprintf(buffer, "Long: %f, ", gps_longitude());
+  Serial.print(buffer);
+  sprintf(buffer, "Alt: %f, ", gps_altitude());
+  Serial.print(buffer);
+  sprintf(buffer, "Sats: %d", sats);
+  Serial.println(buffer);
 
   txBuffer[0] = (LatitudeBinary >> 16) & 0xFF;
   txBuffer[1] = (LatitudeBinary >> 8) & 0xFF;
@@ -130,7 +133,7 @@ void buildPacket(uint8_t txBuffer[]) {
   txBuffer[10] = sats & 0xFF;
 }
 
-// Send a packet if one is warranted
+// Send a packet, if one is warranted
 bool trySend() {
   float now_lat = gps_latitude();
   float now_long = gps_longitude();
@@ -145,13 +148,16 @@ bool trySend() {
     return false;  // Rejected as bogus GPS reading.
 
   // Don't attempt to send or update until we join Helium
-  if (!isJoined) return false;
+  if (!isJoined)
+    return false;
 
   // LoRa is not ready for a new packet, maybe still sending the last one.
-  if (!LMIC_queryTxReady()) return false;
+  if (!LMIC_queryTxReady())
+    return false;
 
   // Check if there is not a current TX/RX job running
-  if (LMIC.opmode & OP_TXRXPEND) return false;
+  if (LMIC.opmode & OP_TXRXPEND)
+    return false;
 
   // distance from last transmitted location
   float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, now_lat, now_long);
@@ -185,7 +191,8 @@ bool trySend() {
   // digitalWrite(RED_LED, LOW);
 
   // The first distance-moved is crazy, since has no origin.. don't put it on screen.
-  if (dist_moved > 1000000) dist_moved = 0;
+  if (dist_moved > 1000000)
+    dist_moved = 0;
 
   snprintf(buffer, sizeof(buffer), "\n%d %c %4lus %4.0fm ", ttn_get_count(), because, (now_millis - last_send_millis) / 1000, dist_moved);
   screen_print(buffer);
@@ -259,44 +266,61 @@ void lora_msg_callback(uint8_t message) {
     snprintf(buffer, sizeof(buffer), "## MSG %d\n", message);
     screen_print(buffer);
   }
-  if (EV_JOIN_TXCOMPLETE == message) Serial.println("# JOIN_TXCOMPLETE");
-  if (EV_TXCOMPLETE == message) Serial.println("# TXCOMPLETE");
-  if (EV_RXCOMPLETE == message) Serial.println("# RXCOMPLETE");
-  if (EV_RXSTART == message) Serial.println("# RXSTART");
-  if (EV_TXCANCELED == message) Serial.println("# TXCANCELED");
-  if (EV_TXSTART == message) Serial.println("# TXSTART");
-  if (EV_JOINING == message) Serial.println("# JOINING");
-  if (EV_JOINED == message) Serial.println("# JOINED");
-  if (EV_JOIN_FAILED == message) Serial.println("# JOIN_FAILED");
-  if (EV_REJOIN_FAILED == message) Serial.println("# REJOIN_FAILED");
-  if (EV_RESET == message) Serial.println("# RESET");
-  if (EV_LINK_DEAD == message) Serial.println("# LINK_DEAD");
-  if (EV_ACK == message) Serial.println("# ACK");
-  if (EV_PENDING == message) Serial.println("# PENDING");
-  if (EV_QUEUED == message) Serial.println("# QUEUED");
+  if (EV_JOIN_TXCOMPLETE == message)
+    Serial.println("# JOIN_TXCOMPLETE");
+  if (EV_TXCOMPLETE == message)
+    Serial.println("# TXCOMPLETE");
+  if (EV_RXCOMPLETE == message)
+    Serial.println("# RXCOMPLETE");
+  if (EV_RXSTART == message)
+    Serial.println("# RXSTART");
+  if (EV_TXCANCELED == message)
+    Serial.println("# TXCANCELED");
+  if (EV_TXSTART == message)
+    Serial.println("# TXSTART");
+  if (EV_JOINING == message)
+    Serial.println("# JOINING");
+  if (EV_JOINED == message)
+    Serial.println("# JOINED");
+  if (EV_JOIN_FAILED == message)
+    Serial.println("# JOIN_FAILED");
+  if (EV_REJOIN_FAILED == message)
+    Serial.println("# REJOIN_FAILED");
+  if (EV_RESET == message)
+    Serial.println("# RESET");
+  if (EV_LINK_DEAD == message)
+    Serial.println("# LINK_DEAD");
+  if (EV_ACK == message)
+    Serial.println("# ACK");
+  if (EV_PENDING == message)
+    Serial.println("# PENDING");
+  if (EV_QUEUED == message)
+    Serial.println("# QUEUED");
 #endif
 
   /* This is confusing because JOINED is sometimes spoofed and comes early */
-  if (EV_JOINED == message) seen_joined = true;
-  if (EV_JOINING == message) seen_joining = true;
+  if (EV_JOINED == message)
+    seen_joined = true;
+  if (EV_JOINING == message)
+    seen_joining = true;
   if (!isJoined && seen_joined && seen_joining) {
     isJoined = true;
     screen_print("Joined Helium!\n");
-    ttn_sf(LORAWAN_SF);  // Joining seems to leave it at SF10
+    ttn_set_sf(lorawan_sf);  // Joining seems to leave it at SF10?
+    ttn_get_sf_name(sf_name, sizeof(sf_name));
+    justSendNow = true;
   }
 
   if (EV_TXSTART == message) {
-    ttn_sf_name(buffer, sizeof(buffer));
-    strncpy(cached_sf_name, buffer, sizeof(cached_sf_name));
-
-    screen_print("+\a");
+    screen_print("+\v");
     screen_update();
   }
   // We only want to say 'packetSent' for our packets (not packets needed for joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
     //    screen_print("sent.\n");
     packetQueued = false;
-    if (axp192_found) axp.setChgLEDMode(AXP20X_LED_OFF);
+    if (axp192_found)
+      axp.setChgLEDMode(AXP20X_LED_OFF);
   }
 
   if (EV_ACK == message) {
@@ -317,7 +341,8 @@ void lora_msg_callback(uint8_t message) {
 
     Serial.printf("Downlink on port: %d = ", port);
     for (int i = 0; i < len; i++) {
-      if (data[i] < 16) Serial.print('0');
+      if (data[i] < 16)
+        Serial.print('0');
       Serial.print(data[i], HEX);
     }
     Serial.println();
@@ -339,11 +364,11 @@ void lora_msg_callback(uint8_t message) {
       unsigned long int new_interval = data[2] << 8 | data[3];
       if (new_interval) {
         if (new_interval == 0xFFFF) {
-          freeze_tx_interval_ms = false;
+          freeze_tx_interval = false;
           tx_interval_ms = STATIONARY_TX_INTERVAL;
         } else {
           tx_interval_ms = new_interval * 1000;
-          freeze_tx_interval_ms = true;
+          freeze_tx_interval = true;
         }
         snprintf(buffer, sizeof(buffer), "\nNew Time: %.0lus\n", new_interval);
         screen_print(buffer);
@@ -385,11 +410,13 @@ void scanI2Cdevice(void) {
       }
     } else if (err == 4) {
       Serial.print("Unknow i2c device at 0x");
-      if (addr < 16) Serial.print("0");
+      if (addr < 16)
+        Serial.print("0");
       Serial.println(addr, HEX);
     }
   }
-  if (nDevices == 0) Serial.println("No I2C devices found!\n");
+  if (nDevices == 0)
+    Serial.println("No I2C devices found!\n");
   /* else  Serial.println("done\n"); */
 }
 
@@ -515,7 +542,8 @@ void setup() {
   DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
 
   // Don't init display if we don't have one or we are waking headless due to a timer event
-  if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER) ssd1306_found = false;  // forget we even have the hardware
+  if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
+    ssd1306_found = false;  // forget we even have the hardware
 
   if (ssd1306_found) {
     screen_setup();
@@ -529,7 +557,9 @@ void setup() {
   if (bootCount <= 1)
 #endif
   {
-    screen_print(APP_NAME " " APP_VERSION, 0, 0);
+    screen_print(APP_NAME " " APP_VERSION, 0, 0); // Above the Logo
+    screen_print(APP_NAME " " APP_VERSION "\n"); // Add it to the log too
+    
     screen_show_logo();
     screen_update();
     delay(LOGO_DELAY);
@@ -546,7 +576,6 @@ void setup() {
     }
   } else {
     ttn_register(lora_msg_callback);
-    // ttn_erase_prefs();
     ttn_join();
     ttn_adr(LORAWAN_ADR);
   }
@@ -578,13 +607,14 @@ void update_activity() {
     clean_shutdown();
   }
 
-  if (!freeze_tx_interval_ms) {
+  if (!freeze_tx_interval) {
     unsigned long int now_interval;
     if (millis() - last_moved_millis > REST_WAIT * 1000)
       now_interval = REST_TX_INTERVAL * 1000;
     else
       now_interval = STATIONARY_TX_INTERVAL * 1000;
-    if (now_interval != tx_interval_ms) tx_interval_ms = now_interval;
+    if (now_interval != tx_interval_ms)
+      tx_interval_ms = now_interval;
   }
 }
 
@@ -670,10 +700,98 @@ const char *find_irq_name(void) {
   return irq_name;
 }
 
+struct menu_entry {
+  const char *name;
+  void(*func)(void);
+};
+
+void menu_send_now(void) {
+  justSendNow = true;
+}
+void menu_power_off(void) {
+  screen_print("\nPOWER OFF...\n");
+  delay(4000);  // Give some time to read the screen
+  clean_shutdown();
+}
+void menu_flush_prefs(void) {
+  screen_print("\nFlushing Prefs!\n");
+  ttn_erase_prefs();
+  delay(5000);  // Give some time to read the screen
+  ESP.restart();
+}
+void menu_distance_plus(void) {
+  min_dist_moved += 5;
+}
+void menu_distance_minus(void) {
+  min_dist_moved -= 5;
+  if (min_dist_moved < 10)
+    min_dist_moved = 10;
+}
+void menu_time_plus(void) {
+  tx_interval_ms += 10 * 1000;
+  freeze_tx_interval = true;
+}
+void menu_time_minus(void) {
+  tx_interval_ms -= 10 * 1000;
+  if (tx_interval_ms < 10 * 1000)
+    tx_interval_ms = 10 * 1000;
+  freeze_tx_interval = true;
+}
+
+dr_t sf_list[] = {DR_SF7, DR_SF8, DR_SF9, DR_SF10};
+#define SF_ENTRIES (sizeof(sf_list) / sizeof(sf_list[0]))
+uint8_t sf_index = 0;
+
+void menu_change_sf(void) {
+  sf_index++;
+  if (sf_index >= SF_ENTRIES)
+    sf_index = 0;
+
+  lorawan_sf = sf_list[sf_index];
+  ttn_set_sf(lorawan_sf);
+  ttn_get_sf_name(sf_name, sizeof(sf_name));
+  Serial.printf("New SF: %s\n", sf_name);
+}
+
+struct menu_entry menu[] = {{"Send Now", menu_send_now}, {"Power Off", menu_power_off}, {"Distance +", menu_distance_plus}, {"Distance -", menu_distance_minus},
+                            {"Time +", menu_time_plus},  {"Time -", menu_time_minus},   {"Change SF", menu_change_sf},      {"Flush Prefs", menu_flush_prefs}};
+#define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
+
+const char *menu_prev;
+const char *menu_cur;
+const char *menu_next;
+boolean in_menu = false;
+boolean is_highlighted = false;
+int menu_entry = 0;
+static uint32_t menu_idle_start = 0;  // what tick should we call this press long enough
+
+void menu_press(void) {
+  if (in_menu)
+    menu_entry = (menu_entry + 1) % MENU_ENTRIES;
+  else
+    in_menu = true;
+
+  menu_prev = menu[(menu_entry - 1) % MENU_ENTRIES].name;
+  menu_cur = menu[menu_entry].name;
+  menu_next = menu[(menu_entry + 1) % MENU_ENTRIES].name;
+
+  menu_idle_start = millis();
+}
+
+void menu_selected(void) {
+  menu_idle_start = millis();
+  menu[menu_entry].func();
+}
+
 void loop() {
   gps_loop();
   ttn_loop();
-  screen_loop(tx_interval_ms, min_dist_moved, cached_sf_name, gps_sats());
+
+  if (in_menu && millis() - menu_idle_start > (5 * 1000))
+    in_menu = false;
+
+  screen_loop(tx_interval_ms, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
+
   update_activity();
 
   /*
@@ -688,47 +806,43 @@ void loop() {
     axp.readIRQ();
     irq_name = find_irq_name();
 
-    if (axp.isPEKLongtPressIRQ())  // They want to turn OFF
-    {
-      screen_print("\nPOWER OFF...\n");
-      delay(4000);  // Give some time to read the screen
-      clean_shutdown();
+    if (axp.isPEKShortPressIRQ())
+      menu_press();
+    else if (axp.isPEKLongtPressIRQ())  // They want to turn OFF
+      menu_power_off();
+    else {
+      snprintf(buffer, sizeof(buffer), "\n* %s ", irq_name);
+      screen_print(buffer);
     }
-
     axp.clearIRQ();
-
-    snprintf(buffer, sizeof(buffer), "\n%s ", irq_name);
-    screen_print(buffer);
   }
 
-  static uint32_t pressTime = 0;  // what tick should we call this press long enough
+  static uint32_t pressTime = 0;
   if (!digitalRead(MIDDLE_BUTTON_PIN)) {
     // Pressure is on
     if (!pressTime) {  // just started a new press
       pressTime = millis();
+      is_highlighted = true;
     }
   } else if (pressTime) {
     // we just did a release
+    is_highlighted = false;
     if (millis() - pressTime > 1000) {
-      // held long enough
       Serial.println("Long press!");
-
-      screen_print("\nFlushing Prefs!\n");
-      ttn_erase_prefs();
-      delay(5000);  // Give some time to read the screen
-      ESP.restart();
-    } else {
-      // short press, send beacon
-      Serial.println("Short press.");
       justSendNow = true;
-      trySend();
+    } else {
+      // short press: menu selection
+      if (in_menu)
+        menu_selected();
+      // Serial.println("Short press.");
     }
     pressTime = 0;  // Released
   }
 
   if (trySend()) {
     // Good send
-    if (axp192_found) axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
+    if (axp192_found)
+      axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
   } else {
     // Nothing sent.
     // Do NOT delay() here.. the LoRa receiver and join housekeeping also needs to run!
