@@ -144,6 +144,7 @@ bool trySend() {
   if (gps_hdop() <= 0 || gps_hdop() > 50 || now_lat == 0.0               // Not fair to the whole equator
       || now_lat > 90.0 || now_lat < -90.0 || now_long == 0.0            // Not fair to King George
       || now_long < -180.0 || now_long > 180.0 || gps_altitude() == 0.0  // Not fair to the ocean
+      || gps_sats() < 4
   )
     return false;  // Rejected as bogus GPS reading.
 
@@ -421,12 +422,16 @@ void scanI2Cdevice(void) {
 }
 
 /**
-   Init the power manager chip
+  Init the power manager chip
 
-   axp192 power
-    DCDC1 0.7-3.5V @ 1200mA max -> OLED // If you turn this off you'll lose comms to the axp192 because the OLED and the axp192 share the same i2c bus, instead
-   use ssd1306 sleep mode DCDC2 -> unused DCDC3 0.7-3.5V @ 700mA max -> ESP32 (keep this on!) LDO1 30mA -> charges GPS backup battery // charges the tiny J13
-   battery by the GPS to power the GPS ram (for a couple of days), can not be turned off LDO2 200mA -> LORA LDO3 200mA -> GPS
+  axp192 power
+  DCDC1 0.7-3.5V @ 1200mA max -> OLED // If you turn this off you'll lose comms to the axp192 because the OLED and the axp192 share the same i2c bus
+  instead use ssd1306 sleep mode 
+  DCDC2 -> unused 
+  DCDC3 0.7-3.5V @ 700mA max -> ESP32 (keep this on!) 
+  LDO1 30mA -> "VCC_RTC" charges GPS backup battery // charges the tiny J13 battery by the GPS to power the GPS ram (for a couple of days), can not be turned off
+  LDO2 200mA -> "LORA_VCC"
+  LDO3 200mA -> "GPS_VCC"
 */
 
 void axp192Init() {
@@ -439,13 +444,13 @@ void axp192Init() {
       return;
     }
 
-    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);  // LORA radio
-    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);  // GPS main power
-    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);
-    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);
+    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);   // LORA radio
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);   // GPS main power
+    axp.setLDO3Voltage(3300);                     // For GPS Power.  Can run on 2.7v to 3.6v
     axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);  // OLED & AXP192 power
     axp.setDCDC1Voltage(3300);                    // for the OLED power
-    axp.setLDO3Voltage(3300);                     // For GPS Power.  Can run on 2.7v to 3.6v
+    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF); // Unconnected
+    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF); // "EXTEN" pin, normally unused
     // Flash LED until first packet is transmitted
     axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
     // axp.setChgLEDMode(AXP20X_LED_OFF);
@@ -461,8 +466,7 @@ void axp192Init() {
 #endif
 
     pinMode(PMU_IRQ, INPUT_PULLUP);
-    attachInterrupt(
-        PMU_IRQ, [] { pmu_irq = true; }, FALLING);
+    attachInterrupt(PMU_IRQ, [] { pmu_irq = true; }, FALLING);
 
     // Configure REG 36H: PEK press key parameter set.  Index values for argument!
     axp.setStartupTime(2);      // "Power on time": 512mS
@@ -495,13 +499,13 @@ void axp192Init() {
     Serial.printf("LDO3: %d mV\n", axp.getLDO3Voltage());
     Serial.printf("LDO4: %d mV\n", axp.getLDO4Voltage());
 
-    axp.adc1Enable(AXP202_BATT_CUR_ADC1,
-                   1);  // Enable battery current measurements
-                        //    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
-    axp.enableIRQ(0xFFFFFFFFFF, 1);  // See this nerd badge?  Give me all the interrupts you have.
+    // Enable battery current measurements
+    axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
+    //    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+    axp.enableIRQ(0xFFFFFFFFFF, 1);  // Give me ALL the interrupts you have.
     axp.clearIRQ();
   } else {
-    Serial.println("AXP192 not found");
+    Serial.println("AXP192 not found!");
   }
 }
 
@@ -517,7 +521,7 @@ void wakeup() {
     one was pressed wakeButtons = ((uint64_t)1) << buttons.gpios[0];
   */
 
-  Serial.printf("Wake cause %d (boot count %d)\n", wakeCause, bootCount);
+  Serial.printf("BOOT #%d!  cause:%d ext1:%08llx\n", bootCount, wakeCause, esp_sleep_get_ext1_wakeup_status());
 }
 
 void setup() {
@@ -737,6 +741,12 @@ void menu_time_minus(void) {
     tx_interval_ms = 10 * 1000;
   freeze_tx_interval = true;
 }
+void menu_gps_passthrough(void) {
+  axp.setChgLEDMode(AXP20X_LED_BLINK_1HZ);
+  axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF);   // Kill LORA radio
+  gps_passthrough();
+  // Does not return.
+}
 
 dr_t sf_list[] = {DR_SF7, DR_SF8, DR_SF9, DR_SF10};
 #define SF_ENTRIES (sizeof(sf_list) / sizeof(sf_list[0]))
@@ -753,8 +763,9 @@ void menu_change_sf(void) {
   Serial.printf("New SF: %s\n", sf_name);
 }
 
-struct menu_entry menu[] = {{"Send Now", menu_send_now}, {"Power Off", menu_power_off}, {"Distance +", menu_distance_plus}, {"Distance -", menu_distance_minus},
-                            {"Time +", menu_time_plus},  {"Time -", menu_time_minus},   {"Change SF", menu_change_sf},      {"Flush Prefs", menu_flush_prefs}};
+struct menu_entry menu[] = {{"Send Now", menu_send_now},         {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
+                            {"Distance -", menu_distance_minus}, {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
+                            {"Change SF", menu_change_sf},       {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;

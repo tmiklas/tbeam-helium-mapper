@@ -133,7 +133,10 @@ void screen_header(unsigned long int tx_interval_ms, float min_dist_moved, char 
     // display->setTextAlignment(TEXT_ALIGN_LEFT);
     // display->drawString(0, 2, buffer);
 
-    gps_time(buffer, sizeof(buffer));
+    if (sats < 3)
+      snprintf(buffer, sizeof(buffer), "*** NO GPS ***");
+    else
+      gps_time(buffer, sizeof(buffer));
   }
 
   display->setTextAlignment(TEXT_ALIGN_CENTER);
@@ -169,14 +172,15 @@ void screen_loop(unsigned long int tx_interval_ms, float min_dist_moved, char *c
 
     display->setTextAlignment(TEXT_ALIGN_CENTER);
     display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 5, menu_prev);
-
+    display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 28, menu_next);
+    if (highlighted)
+      display->clear();
     display->drawHorizontalLine(MARGIN, SCREEN_HEADER_HEIGHT + 16, display->getWidth() - MARGIN * 2);
     snprintf(buffer, sizeof(buffer), highlighted ? ">>> %s <<<" : "%s", menu_cur);
-    display->drawHorizontalLine(MARGIN, SCREEN_HEADER_HEIGHT + 28, display->getWidth() - MARGIN * 2);
-    display->drawVerticalLine(MARGIN, SCREEN_HEADER_HEIGHT + 16, 28-16);
-    display->drawVerticalLine(display->getWidth() - MARGIN, SCREEN_HEADER_HEIGHT + 16, 28-16);
     display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 16, buffer);
-    display->drawString(display->getWidth() / 2, SCREEN_HEADER_HEIGHT + 28, menu_next);
+    display->drawHorizontalLine(MARGIN, SCREEN_HEADER_HEIGHT + 28, display->getWidth() - MARGIN * 2);
+    display->drawVerticalLine(MARGIN, SCREEN_HEADER_HEIGHT + 16, 28 - 16);
+    display->drawVerticalLine(display->getWidth() - MARGIN, SCREEN_HEADER_HEIGHT + 16, 28 - 16);
   } else
     display->drawLogBuffer(0, SCREEN_HEADER_HEIGHT);
   display->display();

@@ -36,6 +36,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "configuration.h"
 #include "credentials.h"
+#include "screen.h"
 
 dr_t ttn_tx_sf = LORAWAN_SF;
 void ttn_sf(dr_t sf);
@@ -389,12 +390,14 @@ void ttn_join() {
     // Make LMiC initialize the default channels, choose a channel, and
     // schedule the OTAA join
     Serial.println("No session saved, joining from scratch");
+    screen_print("Joining...\n");
     LMIC_startJoining();
   } else {
     Serial.println("Reusing saved session");
     LMIC_setSession(netId, devAddr, nwkKey, artKey);
 
     // Trigger a false joined
+    screen_print("(re-used join)\n");
     _ttn_callback(EV_JOINED);
   }
 

@@ -51,7 +51,8 @@ void gps_setup(void) {
   gpsSerial.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
   gpsSerial.setRxBufferSize(2048);  // Default is 256
 
-  if (0) myGNSS.enableDebugging();
+  if (0)
+    myGNSS.enableDebugging();
 
   bool changed_speed = false;
 
@@ -103,15 +104,15 @@ void gps_setup(void) {
 
   myGNSS.setUART1Output(COM_TYPE_NMEA);  // We do want NMEA
 
-  if (0) myGNSS.factoryReset();
+  if (0)
+    myGNSS.factoryReset();
 
-  myGNSS.setNavigationFrequency(1);  // Produce one solution per second
+  myGNSS.setNavigationFrequency(2);  // Produce X solutions per second
 
   myGNSS.disableNMEAMessage(UBX_NMEA_DTM, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GAQ, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GBQ, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GBS, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GLL, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GLQ, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GNQ, COM_PORT_UART1);
@@ -121,18 +122,21 @@ void gps_setup(void) {
   myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GST, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GSV, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_TXT, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_VLW, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_ZDA, COM_PORT_UART1);
-
+  myGNSS.disableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);
+  myGNSS.disableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);
+  
   myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);  // For Speed
   myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);  // For Time & Location
 
-  if (changed_speed) myGNSS.saveConfiguration();  // Save the current settings to flash and BBR
+  if (changed_speed)
+    myGNSS.saveConfiguration();  // Save the current settings to flash and BBR
+}
 
-#if 0
+void gps_passthrough(void) {
   Serial.println("GPS Passthrough forever...");
   while (1) {
     if (gpsSerial.available())
@@ -140,7 +144,6 @@ void gps_setup(void) {
     if (Serial.available())
       gpsSerial.write(Serial.read());
   }
-#endif
 }
 
 void gps_loop(void) {

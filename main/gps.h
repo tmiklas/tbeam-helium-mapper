@@ -14,3 +14,5 @@ float gps_hdop(void);
 uint8_t gps_sats(void);
 float gps_hdop(void);
 float gps_speed(void);
+void gps_passthrough(void);
+
