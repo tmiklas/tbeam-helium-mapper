@@ -109,6 +109,8 @@ void gps_setup(void) {
 
   myGNSS.setNavigationFrequency(2);  // Produce X solutions per second
 
+#if 0
+  // On the Neo6M, these are all off by default anyway:
   myGNSS.disableNMEAMessage(UBX_NMEA_DTM, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GAQ, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_GBQ, COM_PORT_UART1);
@@ -126,11 +128,11 @@ void gps_setup(void) {
   myGNSS.disableNMEAMessage(UBX_NMEA_VLW, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_ZDA, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);
-  
+#endif  
+
+  myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1); // Don't need SV list (on by default)
   myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);  // For Speed
-  myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);  // For Time & Location
+  myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);  // For Time & Location & SV count
 
   if (changed_speed)
     myGNSS.saveConfiguration();  // Save the current settings to flash and BBR

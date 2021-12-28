@@ -426,7 +426,7 @@ void scanI2Cdevice(void) {
 
   axp192 power
   DCDC1 0.7-3.5V @ 1200mA max -> OLED // If you turn this off you'll lose comms to the axp192 because the OLED and the axp192 share the same i2c bus
-  instead use ssd1306 sleep mode 
+  use ssd1306 sleep mode instead
   DCDC2 -> unused 
   DCDC3 0.7-3.5V @ 700mA max -> ESP32 (keep this on!) 
   LDO1 30mA -> "VCC_RTC" charges GPS backup battery // charges the tiny J13 battery by the GPS to power the GPS ram (for a couple of days), can not be turned off
@@ -447,11 +447,12 @@ void axp192Init() {
     axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);   // LORA radio
     axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);   // GPS main power
     axp.setLDO3Voltage(3300);                     // For GPS Power.  Can run on 2.7v to 3.6v
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);  // OLED & AXP192 power
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);  // OLED power
     axp.setDCDC1Voltage(3300);                    // for the OLED power
     axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF); // Unconnected
     axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF); // "EXTEN" pin, normally unused
-    // Flash LED until first packet is transmitted
+
+    // Flash the Blue LED until our first packet is transmitted
     axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
     // axp.setChgLEDMode(AXP20X_LED_OFF);
 
@@ -476,28 +477,29 @@ void axp192Init() {
 
     // Serial.printf("AC IN: %fv\n", axp.getAcinVoltage());
     // Serial.printf("Vbus: %fv\n", axp.getVbusVoltage());
-    Serial.printf("Temp %0.2f°C\n", axp.getTemp());
+    Serial.printf("PMIC Temp %0.2f°C\n", axp.getTemp());
     // Serial.printf("TSTemp %f°C\n", axp.getTSTemp());
     // Serial.printf("GPIO0 %fv\n", axp.getGPIO0Voltage());
     // Serial.printf("GPIO1 %fv\n", axp.getGPIO1Voltage());
     // Serial.printf("Batt In: %fmW\n", axp.getBattInpower());
     Serial.printf("Batt: %0.3fv\n", axp.getBattVoltage() / 1000.0);
-    Serial.printf("SysIPSOut: %fv\n", axp.getSysIPSOUTVoltage());
+    Serial.printf("SysIPSOut: %0.3fv\n", axp.getSysIPSOUTVoltage()/1000.0);
     Serial.printf("isVBUSPlug? %s\n", axp.isVBUSPlug() ? "Yes" : "No");
     Serial.printf("isChargingEnable? %s\n", axp.isChargeingEnable() ? "Yes" : "No");
     Serial.printf("ChargeCurrent: %.2fmA\n", axp.getSettingChargeCurrent());
     Serial.printf("ChargeControlCurrent: %d\n", axp.getChargeControlCur());
     Serial.printf("Charge: %d%%\n", axp.getBattPercentage());
-    Serial.printf("PowerDownVoltage: %d mV\n", axp.getPowerDownVoltage());
+
     Serial.printf("WarningLevel1: %d mV\n", axp.getVWarningLevel1());
     Serial.printf("WarningLevel2: %d mV\n", axp.getVWarningLevel2());
-
+    Serial.printf("PowerDown:     %d mV\n", axp.getPowerDownVoltage());
+    
     Serial.printf("DCDC1Voltage: %d mV\n", axp.getDCDC1Voltage());
     Serial.printf("DCDC2Voltage: %d mV\n", axp.getDCDC2Voltage());
     Serial.printf("DCDC3Voltage: %d mV\n", axp.getDCDC3Voltage());
-    Serial.printf("LDO2: %d mV\n", axp.getLDO2Voltage());
-    Serial.printf("LDO3: %d mV\n", axp.getLDO3Voltage());
-    Serial.printf("LDO4: %d mV\n", axp.getLDO4Voltage());
+    Serial.printf("LDO2:         %d mV\n", axp.getLDO2Voltage());
+    Serial.printf("LDO3:         %d mV\n", axp.getLDO3Voltage());
+    Serial.printf("LDO4:         %d mV\n", axp.getLDO4Voltage());
 
     // Enable battery current measurements
     axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
@@ -529,7 +531,6 @@ void setup() {
 #ifdef DEBUG_PORT
   DEBUG_PORT.begin(SERIAL_BAUD);
 #endif
-
   wakeup();
 
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -537,25 +538,27 @@ void setup() {
 
   axp192Init();
 
+  // GPS sometimes gets wedged with no satellites in view and only a power-cycle saves it.
+  // Here we turn off power and the delay in screen setup is enough time to bonk the GPS
+  axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);   // GPS power off
+
   // Buttons & LED
   pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
   pinMode(RED_LED, OUTPUT);
   digitalWrite(RED_LED, HIGH);  // Off
 
   // Hello
-  DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
+  DEBUG_MSG("\n" APP_NAME " " APP_VERSION "\n");
 
   // Don't init display if we don't have one or we are waking headless due to a timer event
   if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
     ssd1306_found = false;  // forget we even have the hardware
 
-  if (ssd1306_found) {
+  if (ssd1306_found)
     screen_setup();
-  }
 
-  // Init GPS
-  gps_setup();
-
+  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);   // GPS power on, so it has time to setttle.
+  
   // Show logo on first boot after removing battery
 #ifndef ALWAYS_SHOW_LOGO
   if (bootCount <= 1)
@@ -574,7 +577,6 @@ void setup() {
     screen_print("[ERR] Radio module not found!\n");
 
     if (REQUIRE_RADIO) {
-      //      delay(MESSAGE_TO_SLEEP_DELAY);
       screen_off();
       sleep_forever();
     }
@@ -583,6 +585,10 @@ void setup() {
     ttn_join();
     ttn_adr(LORAWAN_ADR);
   }
+
+  // Might have to add a longer delay here  
+  gps_setup();  // Init GPS baudrate and messages
+
 }
 
 // Power OFF -- does not return
@@ -747,6 +753,16 @@ void menu_gps_passthrough(void) {
   gps_passthrough();
   // Does not return.
 }
+void menu_experiment(void){
+  static boolean power_toggle = true;
+
+  Serial.printf("%f mA  %f mW\n", axp.getBattChargeCurrent() - axp.getBattDischargeCurrent(), axp.getBattInpower());
+
+  axp.setPowerOutPut(AXP192_LDO3, power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
+  axp.setPowerOutPut(AXP192_LDO2, power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
+  //  axp.setPowerOutPut(AXP192_DCDC1, power_toggle ? AXP202_ON : AXP202_OFF);
+  power_toggle = !power_toggle;
+}
 
 dr_t sf_list[] = {DR_SF7, DR_SF8, DR_SF9, DR_SF10};
 #define SF_ENTRIES (sizeof(sf_list) / sizeof(sf_list[0]))
@@ -765,7 +781,8 @@ void menu_change_sf(void) {
 
 struct menu_entry menu[] = {{"Send Now", menu_send_now},         {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
                             {"Distance -", menu_distance_minus}, {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
-                            {"Change SF", menu_change_sf},       {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough}};
+                            {"Change SF", menu_change_sf},       {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
+                            {"Danger", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
