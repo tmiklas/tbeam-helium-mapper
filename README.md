@@ -10,10 +10,10 @@ The goal of this version is to have a TTGO T-Beam that's ideally suited to vehic
 Before Buliding and Uploading, you will probably want to inspect or change some items in these three files:
   - `configuration.h`
   - `platformio.ini`
-  - `credentials.h`
+  - `credentials.cpp`
 
-The comments and text below will guide you on what values to look out for.  By default, this build is for the **US915** region.  Tune accordingly.
-You should choose your own AppKey value in `credentials.h`; either take the random one suggested by the Console Device entry, or make up one of your own.
+The comments and text below will guide you on what values to look out for.  By default, this build is for the **US915** region.  Change `platformio.ini` for a different locale.
+You should choose your own AppKey value in `credentials.cpp`; either take the random one suggested by the Console Device entry, or make up one of your own.  Read the detailed notes in `credentials.cpp`.
 
 The COM Port called out in `platformio.ini` for Uploading and Monitoring works great on my machine, but you will have to match it to your own computer or comment them out entirely and let PlatformIO take a guess.
 
@@ -21,29 +21,31 @@ The COM Port called out in `platformio.ini` for Uploading and Monitoring works g
 When your car is started, and USB Power appears, the Mapper will power on, acquire GPS, and continue mapping.
 It re-uses the last network Join state for faster connection and fewer packets.  Ideally, there is no Join Request/Accept packet exchange at power-on.
 
-If the Helium network resets state, or your device is out of sync, hold down the middle button to erase the last-joined state, and the device will start a fresh Join.
+If the Helium network resets state, or your device is out of sync, select `Flush Prefs` from the on-screen menu, and the device will start a fresh Join.
 
-When running, the Mapper will send out a packet every time GPS indicates it has moved `MIN_DIST` meters.  This is the primary knob to turn for more/fewer packets.  A Helium hex cell is about 340meters across, so the default 68-meter packet distance will send quite a few redundant packets for each mapped cell.  DC is incredibly cheap, but adjust to taste.
+When running, the Mapper will send out a packet every time GPS indicates it has moved `MIN_DIST` meters.  This is the primary knob to turn for more/fewer packets.  A Helium hex cell is about 340meters across, so the default 68-meter packet distance will send quite a few redundant packets for each mapped cell.  DC is incredibly cheap, but adjust the distance if you want to send fewer packets.
 
-This is the normal operation of the Mapper in motion.. every `MIN_DIST` meters, one ping reporting position, while the battery charges from USB to a steady 4.1+ volts.  If the speed of motion is fast, it may even result in back-to-back packet sends, limited by the bandwidth of your chosen Spreading Factor (Data Rate).
+This is the normal operation of the Mapper in motion.. every `MIN_DIST` meters, one ping reporting position, while the battery charges from USB.  If the speed of motion is fast, it may even result in back-to-back packet sends (at greater distance separation) limited by the bandwidth of your chosen Spreading Factor (Data Rate).
 
-When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat pin every `STATIONARY_TX_INTERVAL` seconds (default 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.
+When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat pin every `STATIONARY_TX_INTERVAL` seconds (default: 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.
 
 After being stationary a long time (parked) with a decreasing battery voltage, we change to a slower pace of updates.  This happens after `REST_WAIT` seconds (default: 30 minutes).  In the Rest state, the Mapper transmits every `REST_TX_INTERVAL` seconds (default: 5 minutes).
 
-Eventually, the ~100mA power drain of the mapper runs the battery down below `BATTERY_LOW_VOLTAGE` volts, and the Mapper will save state and completely power off.
+Eventually, the ~100mA power drain of the mapper (with OLED screen & GPS) runs the battery down below `BATTERY_LOW_VOLTAGE` volts, and the Mapper will save state and completely power off.
 It will power on and resume only when USB power appears.
 
 ### Buttons
 
-The TTGO T-Beam has three buttons on the underside.  Nearest the USB connector is the Power button.  A long press on this button will turn the unit completely off.
-The middle button can be pressed quickly to cause an immediate packet send.  A long press will erase the network state (discard Join) and re-Join.
+The TTGO T-Beam has three buttons on the underside.  Nearest the USB connector is the Power button.  A long press on this button will turn the unit completely off.  A short press will turn it back on.
+
+A short press of the Power button will enter the device on-screen Menu.  Use the Power button to step through options, and the middle button to select a menu entry.
+
 The button furthest from USB is the Reset button.  It instantly reboots the device, and is not handled by software at all.
 
 ### Compiling the Software
 The fantastic state of PlatformIO tools makes it easiest to build and load your TTGO from source code; no pre-built binary is necessary.
 
-By default, the DevEUI is generated automatically to be unique to each unit, but you may want to hardcode it in `credentials.h` instead.
+By default, the DevEUI is generated automatically to be unique to each unit, but you may want to hardcode it in `credentials.cpp` instead.
 
 I tested this software only on a LilyGo TTGO T-Beam v1.1 on **US915**.  If you have an older v0.7 board or different region, adjust the configuration to match.
 
@@ -51,16 +53,16 @@ I tested this software only on a LilyGo TTGO T-Beam v1.1 on **US915**.  If you h
 The device outputs debugging information on the USB Serial connection at 115200bps, including the network Credentials or any failures.
 On startup, the USB Serial port will print the DevEUI, AppID, and AppKey values, suitable for cut & paste entry into the Helium Console for your Device.
 
-The OLED screen is always on when operating (as it uses only 10mA), and displays alternating status in the top row:
+The OLED screen is always on when operating (as it uses only 10mA), and displays status in the top two rows, with a running 4-line log in the region below the line.
 - `#ABC` is the last three hex digits of your DevEUI, so you can match it to the correct device in Console.
 - `4.10v` is the battery voltage
 - `48mA` is the charge or discharge current to the battery.  The TTGO charges the battery cell at around 750mA from USB, when possible.
 - Satellite Count is displayed on the right at all times.
-- Packet Count and Time of Day (UTC) alternate on the display line every 2 seconds.
+- The GPS Time of Day (UTC) alternates on the display line every 2 seconds.
 
-The second line shows the current operating parameters.. Time Interval, Distance Interval, and Spreading Factor / Data Rate.
+The second line shows the current operating parameters.. Time Interval, Distance Interval, and Spreading Factor / Data Rate used for Uplink.
 
-The lower part of the OLED screen shows a scrolling display of four messages.  Most often, it shows the Time and Distance between packet sends, and the trigger that caused the send: `T` for Time, `D` for Distance, or `>` for button press.
+The lower part of the OLED screen shows a scrolling display of four messages.  Most often, it shows the Time and Distance between packet sends, and the trigger that caused the send: `T` for Time, `D` for Distance, or `>` for menu requested "Just Send".
 
 ## Payload
 The Payload Port and byte content have been selected to match that in common use by CubeCell mappers: 
@@ -98,7 +100,6 @@ function Decoder(bytes, port) {
   return decoded;  
 }
 ```
-
 
 ### Downlink
 This builds adds the option to reconfigure the Mapper remotely via Helium Downlink (network to device).  You can change the maximum Time Interval, Distance, and Battery Cut-off voltage remotely.
@@ -146,11 +147,9 @@ Battery voltage cutoff can range from 2.0 to 4.5 volts.  If you set a cutoff hig
 
 None of the Downlink values persist across power-off & on; the device always reverts to compiled-in values on startup.
 
-# The remainder of this README is parts copied from earlier authors that developed this codebase.  This may be out of date or no correct for this build:
+# The remainder of this README is parts copied from earlier authors that developed this codebase.  This may be out of date or no longer correct for this build:
 
 ![T-Beam buttons](img/t-beam-buttons.jpeg)
-
-Once moving, you will be able to see it operating properly and reporting TX window:
 
 ![TX Window Scaling](img/TX-window-scaling.jpeg)
 
