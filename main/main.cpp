@@ -759,8 +759,6 @@ void menu_experiment(void){
   Serial.printf("%f mA  %f mW\n", axp.getBattChargeCurrent() - axp.getBattDischargeCurrent(), axp.getBattInpower());
 
   axp.setPowerOutPut(AXP192_LDO3, power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
-  axp.setPowerOutPut(AXP192_LDO2, power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
-  //  axp.setPowerOutPut(AXP192_DCDC1, power_toggle ? AXP202_ON : AXP202_OFF);
   power_toggle = !power_toggle;
 }
 
