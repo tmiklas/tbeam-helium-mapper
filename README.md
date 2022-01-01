@@ -46,7 +46,7 @@ When moving, the Mapper will send out a packet every time GPS indicates it has m
 
 This is the normal operation of the Mapper in motion.. every `MIN_DIST` meters, one ping reporting position, while the battery charges from USB.  If the speed of motion is fast, it may even result in back-to-back packet sends (at greater distance) limited by the bandwidth of your chosen Spreading Factor (Data Rate) and country restrictions.  (In the United States US915, at SF10, this is about two seconds maximum speed.  In Thailand, it can be 37 seconds or more.)
 
-When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat pin every `STATIONARY_TX_INTERVAL` seconds (default: 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.
+When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat ping every `STATIONARY_TX_INTERVAL` seconds (default: 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.
 
 After being stationary a long time (parked) with a decreasing battery voltage, we change to a slower pace of updates.  This happens after `REST_WAIT` seconds (default: 30 minutes).  In the Rest state, the Mapper transmits every `REST_TX_INTERVAL` seconds (default: 5 minutes).
 
@@ -131,7 +131,7 @@ There are some instances where this is problematic or not correct:
 At any time, you can select `Flush Prefs` in the system menu to discard these keys, reset the device, and Join fresh.
 
 ### GPS Connected
-You should also see a message reporting `GPS connected.`.   The first time you run this software on hardware that came with Mestastic or other builds, it will automatically try all common baud rates to find the Neo GPS module.  Eventually it will connect, then configure the GPS for the needed NMEA Messages at 115,200 bps, then save the configuration to flash so that subsequent boot is faster.  In any case, you should always see `GPS connected` at startup.
+You should also see a message reporting `GPS connected`.   The first time you run this software on hardware that came with Mestastic or other builds, it will automatically try all common baud rates to find the Neo GPS module.  Eventually it will connect, then configure the GPS for the needed NMEA Messages at 115,200 bps, then save the configuration to flash so that subsequent boot is faster.  In any case, you should always see `GPS connected` at startup.
 
 This means the Mapper is receving NMEA messages at the expected bitrate, but it may not yet have a 3D position fix from the GPS.
 
