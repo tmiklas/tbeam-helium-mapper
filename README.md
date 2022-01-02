@@ -144,10 +144,10 @@ The T-Beam has three LEDs.  Unfortunately, two of them are underneath the typica
 * ON: A packet is being sent on LoRaWAN
 * Flashing at 4 Hz: The first packet has not yet been successfully sent after startup
 * Off: Normal operation, nothing going on.
-3. ESP Red LED.  The Red LED is not very bright or easy to see.  Mapper lights this LED when a Confirmation request has been sent, and then turns the LED off when the confirmation Ack was received.  This is a handy visual at-a-glance indicator that the unit is expecting to receive an Ack from the network.  If you see this LED remain light for an extended time, it means the network might be unreachable.
+3. ESP Red LED.  The Red LED is not very bright or easy to see.  Mapper lights this LED when a Confirmation request has been sent, and then turns the LED off when the confirmation Ack was received.  This is a handy visual at-a-glance indicator that the unit is expecting to receive an Ack from the network.  If you see this LED remain lit for an extended time, it means the network might be unreachable.
 
 ## OLED Screen Display
-The T-Beam usually comes as a kit with a 0.96" SSD1306 OLED screen that you must solder to power & i2c pins.  Other sizes should work just as well, and some cases expect a 1.3" screen of the same type.
+The T-Beam usually comes as a kit with a 0.96" SSD1306 OLED screen that you must solder to power & i2c pins.
 
 The OLED screen is always on when operating, as it uses only 10mA.
 
@@ -249,7 +249,7 @@ For example, you might want to change the Mapper to 75 meter distance, and 600 s
 00 4B 02 58 00
 AEsCWAA=
 ```
-That last output `AEsCWAA=` is the Base64-encoded payload, read to use.
+That last output `AEsCWAA=` is the Base64-encoded payload, ready to use.
 
 #### Queue the Downlink packet for transmission
 Paste that payload into the Helium Console under the Downlink panel for that device.  Select a specific device, then the "Cloud Down-arrow" icon on the right ("Send a manual downlink to this device") to open the Downlink panel.
