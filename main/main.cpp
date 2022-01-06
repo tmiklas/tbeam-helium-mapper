@@ -852,15 +852,18 @@ void loop() {
     }
   } else if (pressTime) {
     // we just did a release
-    is_highlighted = false;
-    if (millis() - pressTime > 1000) {
-      Serial.println("Long press!");
+    if (in_menu)
+      menu_selected();
+    else {
+      screen_print("\nSend! ");
       justSendNow = true;
+    }
+    is_highlighted = false;
+
+    if (millis() - pressTime > 1000) {
+      // Was a long press
     } else {
-      // short press: menu selection
-      if (in_menu)
-        menu_selected();
-      // Serial.println("Short press.");
+      // Was a short press
     }
     pressTime = 0;  // Released
   }
