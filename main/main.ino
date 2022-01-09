@@ -457,7 +457,7 @@ void setup() {
 #endif
 
   // Hello
-  DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
+  // DEBUG_MSG(APP_NAME " " APP_VERSION "\n");
 
   // Don't init display if we don't have one or we are waking headless due to a timer event
   if (wakeCause == ESP_SLEEP_WAKEUP_TIMER)

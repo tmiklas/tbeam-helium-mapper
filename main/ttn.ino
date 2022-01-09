@@ -383,6 +383,7 @@ void ttn_join() {
         }
         else {
             Serial.println("Rejoining saved session");
+            screen_print("Rejoining saved session\n");
             LMIC_setSession(netId, devAddr, nwkKey, artKey);
 
             // Trigger a false joined
@@ -421,6 +422,16 @@ static void ttn_set_cnt() {
             p.putUInt("count", count);
             p.end();
         }
+    }
+}
+
+/// Save counter - can be used on power down
+void ttn_save_counter() {
+    Preferences p;
+    if(p.begin("lora", false)) {
+        p.putUInt("count", count);
+        screen_print("Frame Count saved!\n");
+        p.end();
     }
 }
 

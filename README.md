@@ -24,6 +24,8 @@ Same as Fizzy I have not done any of the coding. My only idea with this fork is 
 
 Further modifications added by [tmiklas](https://github.com/tmiklas/tbeam-helium-mapper):
 
+**2022-01-09** - Minor screen message changes, version bumped to `1.2-tm`
+
 **2021-11-18** - Introducing **distance target** mode (a.k.a. TX window scaling)
 
 Verison: `1.1-tm`
