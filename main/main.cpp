@@ -187,7 +187,7 @@ bool trySend() {
     last_moved_millis = now_millis;
     because = 'D';
   } else if (now_millis - last_send_millis > tx_interval_s * 1000) {
-    Serial.println("** STATIONARY_TX");
+    Serial.println("** TIME");
     because = 'T';
   } else {
     return false;  // Nothing to do, go home early
@@ -430,10 +430,11 @@ void lora_msg_callback(uint8_t message) {
       unsigned long int new_interval = data[2] << 8 | data[3];
       if (new_interval) {
         if (new_interval == 0xFFFF) {
-          tx_interval_s = STATIONARY_TX_INTERVAL;
+          stationary_tx_interval_s = STATIONARY_TX_INTERVAL;
         } else {
-          tx_interval_s = new_interval;
+          stationary_tx_interval_s = new_interval;
         }
+        tx_interval_s = stationary_tx_interval_s;
         snprintf(buffer, sizeof(buffer), "\nNew Time: %.0lus\n", new_interval);
         screen_print(buffer);
       }
@@ -801,12 +802,12 @@ void menu_distance_minus(void) {
     min_dist_moved = 10;
 }
 void menu_time_plus(void) {
-  tx_interval_s += 10;
+  stationary_tx_interval_s += 10;
 }
 void menu_time_minus(void) {
-  tx_interval_s -= 10;
-  if (tx_interval_s < 10)
-    tx_interval_s = 10;
+  stationary_tx_interval_s -= 10;
+  if (stationary_tx_interval_s < 10)
+    stationary_tx_interval_s = 10;
 }
 void menu_gps_passthrough(void) {
   axp.setChgLEDMode(AXP20X_LED_BLINK_1HZ);
