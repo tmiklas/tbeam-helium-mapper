@@ -106,6 +106,14 @@ After this are serveral data messages about voltages and settings, largely unint
 On startup, the USB Serial port will print the DevEUI, AppID, and AppKey values, suitable for cut & paste entry into the Helium Console for your Device.
 For some, this is the easiest way to configure a new device.  Upload the software, monitor the first boot, then cut & paste the values from the messages into the Console "New Device" setup.
 
+#### Saved Preferences
+The Mapper will retain certain settings across power cycles.
+* Minimum distance
+* Stationary Tx Interval (min time)
+* Rest Wait (time until slower reporting)
+* Rest Tx Interval (slower reporting interval)
+* LoRaWAN DR/SF
+
 ### Network Join
 
 The Mapper will flash the Blue LED at 4Hz and attempt to Join the Helium network by sending a Join Request packet using the configured locale.  This is the most common point of failure as it requires both a transmitted Join_Request and a received Join_Accept message.  If there is no hotspot nearby, the network Join will not complete and the unit will continue retrying until coverage is available.  There are several reasons a Join might fail:

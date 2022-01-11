@@ -113,7 +113,7 @@ void screen_setup() {
 #include <axp20x.h>
 extern AXP20X_Class axp;  // TODO: This is evil
 
-void screen_header(unsigned long int tx_interval_ms, float min_dist_moved, char *cached_sf_name, int sats) {
+void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats) {
   if (!display)
     return;
 
@@ -148,7 +148,7 @@ void screen_header(unsigned long int tx_interval_ms, float min_dist_moved, char 
   display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT, SATELLITE_IMAGE);
 
   // Second status row:
-  snprintf(buffer, sizeof(buffer), "%lus %.0fm", tx_interval_ms / 1000, min_dist_moved);
+  snprintf(buffer, sizeof(buffer), "%us %.0fm", tx_interval_s, min_dist_moved);
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(0, 12, buffer);
 
@@ -159,13 +159,13 @@ void screen_header(unsigned long int tx_interval_ms, float min_dist_moved, char 
 }
 
 #define MARGIN 15
-void screen_loop(unsigned long int tx_interval_ms, float min_dist_moved, char *cached_sf_name, int sats, boolean in_menu, const char *menu_prev,
+void screen_loop(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats, boolean in_menu, const char *menu_prev,
                  const char *menu_cur, const char *menu_next, boolean highlighted) {
   if (!display)
     return;
 
   display->clear();
-  screen_header(tx_interval_ms, min_dist_moved, cached_sf_name, sats);
+  screen_header(tx_interval_s, min_dist_moved, cached_sf_name, sats);
 
   if (in_menu) {
     char buffer[40];

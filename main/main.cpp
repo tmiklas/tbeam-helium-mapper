@@ -44,6 +44,7 @@
 #include <Wire.h>
 #include <axp20x.h>
 #include <lmic.h>
+#include <Preferences.h>
 
 #include "configuration.h"
 #include "gps.h"
@@ -62,8 +63,12 @@ float last_send_lon = 0;
 float dist_moved = 0;
 
 /* Defaults that can be overwritten by downlink messages */
-unsigned long int tx_interval_ms = STATIONARY_TX_INTERVAL * 1000;
-boolean freeze_tx_interval = false;
+/* 32-bit int seconds is 50 days maximum */
+unsigned int rest_wait_s; // prefs REST_WAIT
+unsigned int rest_tx_interval_s; // prefs REST_TX_INTERVAL
+unsigned int stationary_tx_interval_s; // prefs STATIONARY_TX_INTERVAL
+unsigned int tx_interval_s;
+
 float battery_low_voltage = BATTERY_LOW_VOLTAGE;
 float min_dist_moved = MIN_DIST;
 
@@ -86,7 +91,7 @@ esp_sleep_source_t wakeCause;  // the reason we booted this time
 
 char buffer[40];  // Screen buffer
 
-dr_t lorawan_sf = LORAWAN_SF;
+dr_t lorawan_sf; // prefs LORAWAN_SF
 char sf_name[40];
 
 unsigned long int ack_req = 0;
@@ -181,7 +186,7 @@ bool trySend() {
     Serial.println("** MOVING");
     last_moved_millis = now_millis;
     because = 'D';
-  } else if (now_millis - last_send_millis > tx_interval_ms) {
+  } else if (now_millis - last_send_millis > tx_interval_s * 1000) {
     Serial.println("** STATIONARY_TX");
     because = 'T';
   } else {
@@ -223,6 +228,66 @@ bool trySend() {
   last_send_lon = now_long;
 
   return true;  // We did it!
+}
+
+/*
+Mapper namespace
+mapper {
+
+}
+*/
+
+void mapper_restore_prefs(void) {
+  Preferences p;
+  if (p.begin("mapper", true))  // Read-only
+  {
+    min_dist_moved = p.getFloat("min_dist", MIN_DIST);
+    rest_wait_s = p.getUInt("rest_wait", REST_WAIT);
+    rest_tx_interval_s = p.getUInt("rest_tx", REST_TX_INTERVAL);
+    stationary_tx_interval_s = p.getUInt("tx_interval", STATIONARY_TX_INTERVAL);
+    if (sizeof(lorawan_sf) != sizeof(unsigned char))
+      Serial.println("Error!  size mismatch for sf");
+    lorawan_sf = p.getUChar("sf", LORAWAN_SF);
+    // Close the Preferences
+    p.end();
+  } else {
+    Serial.println("No Mapper prefs -- using defaults.");
+    min_dist_moved = MIN_DIST;
+    rest_wait_s = REST_WAIT;
+    rest_tx_interval_s = REST_TX_INTERVAL;
+    stationary_tx_interval_s = STATIONARY_TX_INTERVAL;
+    lorawan_sf = LORAWAN_SF;
+  }
+
+  tx_interval_s = stationary_tx_interval_s;
+}
+
+void mapper_save_prefs (void)
+{
+  Preferences p;
+
+  Serial.println("Saving prefs.");
+  if (p.begin("mapper", false)) {
+    p.putFloat("min_dist", min_dist_moved);
+    p.putUInt("rest_wait", rest_wait_s);
+    p.putUInt("rest_tx", rest_tx_interval_s);
+    p.putUInt("tx_interval", stationary_tx_interval_s);
+    p.putUChar("sf", lorawan_sf);
+    p.end();
+  }
+}
+
+void mapper_erase_prefs (void)
+{
+#if 0 
+  nvs_flash_erase(); // erase the NVS partition and...
+  nvs_flash_init(); // initialize the NVS partition.
+#endif
+  Preferences p;
+  if (p.begin("mapper", false)) {
+    p.clear();
+    p.end();
+  }
 }
 
 #if 0
@@ -365,11 +430,9 @@ void lora_msg_callback(uint8_t message) {
       unsigned long int new_interval = data[2] << 8 | data[3];
       if (new_interval) {
         if (new_interval == 0xFFFF) {
-          freeze_tx_interval = false;
-          tx_interval_ms = STATIONARY_TX_INTERVAL;
+          tx_interval_s = STATIONARY_TX_INTERVAL;
         } else {
-          tx_interval_ms = new_interval * 1000;
-          freeze_tx_interval = true;
+          tx_interval_s = new_interval;
         }
         snprintf(buffer, sizeof(buffer), "\nNew Time: %.0lus\n", new_interval);
         screen_print(buffer);
@@ -550,6 +613,8 @@ void setup() {
   // Hello
   DEBUG_MSG("\n" APP_NAME " " APP_VERSION "\n");
 
+  mapper_restore_prefs(); // Fetch saved settings
+
   // Don't init display if we don't have one or we are waking headless due to a timer event
   if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
     ssd1306_found = false;  // forget we even have the hardware
@@ -594,6 +659,7 @@ void setup() {
 // Power OFF -- does not return
 void clean_shutdown(void) {
   LMIC_shutdown();  // cleanly shutdown the radio
+  mapper_save_prefs();
   ttn_write_prefs();
   if (axp192_found) {
     axp.setChgLEDMode(AXP20X_LED_OFF);  // Surprisingly sticky if you don't set it
@@ -617,15 +683,10 @@ void update_activity() {
     clean_shutdown();
   }
 
-  if (!freeze_tx_interval) {
-    unsigned long int now_interval;
-    if (millis() - last_moved_millis > REST_WAIT * 1000)
-      now_interval = REST_TX_INTERVAL * 1000;
-    else
-      now_interval = STATIONARY_TX_INTERVAL * 1000;
-    if (now_interval != tx_interval_ms)
-      tx_interval_ms = now_interval;
-  }
+  if (millis() - last_moved_millis > rest_wait_s * 1000)
+    tx_interval_s = rest_tx_interval_s;
+  else
+    tx_interval_s = stationary_tx_interval_s;
 }
 
 /* I must know what that interrupt was for! */
@@ -710,6 +771,7 @@ const char *find_irq_name(void) {
   return irq_name;
 }
 
+
 struct menu_entry {
   const char *name;
   void(*func)(void);
@@ -726,6 +788,7 @@ void menu_power_off(void) {
 void menu_flush_prefs(void) {
   screen_print("\nFlushing Prefs!\n");
   ttn_erase_prefs();
+  mapper_erase_prefs();
   delay(5000);  // Give some time to read the screen
   ESP.restart();
 }
@@ -738,14 +801,12 @@ void menu_distance_minus(void) {
     min_dist_moved = 10;
 }
 void menu_time_plus(void) {
-  tx_interval_ms += 10 * 1000;
-  freeze_tx_interval = true;
+  tx_interval_s += 10;
 }
 void menu_time_minus(void) {
-  tx_interval_ms -= 10 * 1000;
-  if (tx_interval_ms < 10 * 1000)
-    tx_interval_ms = 10 * 1000;
-  freeze_tx_interval = true;
+  tx_interval_s -= 10;
+  if (tx_interval_s < 10)
+    tx_interval_s = 10;
 }
 void menu_gps_passthrough(void) {
   axp.setChgLEDMode(AXP20X_LED_BLINK_1HZ);
@@ -816,7 +877,7 @@ void loop() {
   if (in_menu && millis() - menu_idle_start > (5 * 1000))
     in_menu = false;
 
-  screen_loop(tx_interval_ms, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
+  screen_loop(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
 
   update_activity();
 

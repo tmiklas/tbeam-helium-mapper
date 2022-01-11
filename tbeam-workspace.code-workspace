@@ -7,7 +7,13 @@
 	"settings": {
 		"files.associations": {
 			"vector": "cpp",
-			"algorithm": "cpp"
+			"algorithm": "cpp",
+			"array": "cpp",
+			"deque": "cpp",
+			"string": "cpp",
+			"unordered_map": "cpp",
+			"unordered_set": "cpp",
+			"initializer_list": "cpp"
 		}
 	}
 }

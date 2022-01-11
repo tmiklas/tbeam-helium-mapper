@@ -33,15 +33,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //#define T_BEAM_V07  // AKA Rev0 (first board released)
 #define T_BEAM_V10  // AKA Rev1 (second board released), also for "v1.1"
 
-#define MIN_DIST 68.0                    // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
-#define STATIONARY_TX_INTERVAL (2 * 60)  // If no minimum movement, the LoRa frame will still be sent once every N seconds
-#define REST_WAIT (30 * 60)              // If we still haven't moved in this many seconds, start sending even slower
-#define REST_TX_INTERVAL (10 * 60)       // Slow resting ping frequency in seconds
+#define MIN_DIST                68.0       // Minimum distance in meters from the last sent location before we can send again. A hex is about 340m.
+#define STATIONARY_TX_INTERVAL  ( 2 * 60)  // If no minimum movement, the LoRa frame will still be sent once every N seconds
+
+#define REST_WAIT               (30 * 60)  // If we still haven't moved in this many seconds, start sending even slower
+#define REST_TX_INTERVAL        (10 * 60)  // Slow resting ping frequency in seconds
 
 #define BATTERY_LOW_VOLTAGE 3.4  // Below this voltage, power off until USB power allows charging
 
 #define LORAWAN_PORT 2              // FPort for Uplink messages -- must match Helium Console Decoder script!
-#define LORAWAN_CONFIRMED_EVERY 10  // Send confirmed message for ACK every N messages (0 means never, 1 means always, 2 every-other-one..)
+#define LORAWAN_CONFIRMED_EVERY 0  // Send confirmed message for ACK every N messages (0 means never, 1 means always, 2 every-other-one..)
 #define LORAWAN_SF DR_SF7           // Spreading factor (recommended DR_SF7 for network map purposes, DR_SF10 is slower/more-reach)
 
 // Uncomment to enable discarding network settings by long pressing second button
