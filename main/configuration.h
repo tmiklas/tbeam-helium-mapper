@@ -45,6 +45,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define LORAWAN_CONFIRMED_EVERY 0  // Send confirmed message for ACK every N messages (0 means never, 1 means always, 2 every-other-one..)
 #define LORAWAN_SF DR_SF7           // Spreading factor (recommended DR_SF7 for network map purposes, DR_SF10 is slower/more-reach)
 
+// Deadzone defines a circular area where no map packets will originate.
+// Set Radius to zero to disable, or leave it enabled to select center position from menu.
+// (Thanks to @Woutch for the name)
+#define DEADZONE_LAT 34.5678
+#define DEADZONE_LON -123.4567
+#define DEADZONE_RADIUS_M 500  // meters
+
 // Uncomment to enable discarding network settings by long pressing second button
 #define PREFS_DISCARD
 
@@ -53,7 +60,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 
 #define APP_NAME "Helium TTGO"
-#define APP_VERSION "1.6.2 MaxP"
+#define APP_VERSION "1.6.4 MaxP"
 
 // -----------------------------------------------------------------------------
 // Less common Configuration iteams
@@ -101,6 +108,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define REQUIRE_RADIO true  // If true, we will fail to start if the radio is not found
 
+
+// Wiring for I2C OLED display:
+//
+// Signal     Header   OLED
+// 3V3         7       VCC
+// GND         8       GND
+// IO22(SCL)   9       SCL
+// IO21(SDA)   10      SDA
 #define I2C_SDA 21
 #define I2C_SCL 22
 
@@ -132,6 +147,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #elif defined(T_BEAM_V10)  // Or T-Beam v1.1
 #define GPS_RX_PIN 34
 #define GPS_TX_PIN 12
+#define GPS_INT 37 // 30ns accurate timepulse from Neo-6M pin 3
 #endif
 
 // -----------------------------------------------------------------------------
