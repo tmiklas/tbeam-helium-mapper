@@ -5,24 +5,30 @@
  This is a development fork by Max-Plastix hosted here:
  https://github.com/Max-Plastix/tbeam-helium-mapper/
 
- This code comes from a number of developers and earlier efforts, visible in the lineage on Github and prior comments below.
- GPL makes this all possible -- continue to modify, extend, and share!
+ This code comes from a number of developers and earlier efforts, visible in the
+ lineage on Github and prior comments below. GPL makes this all possible --
+ continue to modify, extend, and share!
  */
 
 /*
-  This module and those attached with it have been modified for the Helium Network by Fizzy. The following has been changed from the original modifications for
-  Helium, by longfi-arduino:
+  This module and those attached with it have been modified for the Helium
+  Network by Fizzy. The following has been changed from the original
+  modifications for Helium, by longfi-arduino:
   - Added Helium Startup Logo
-  - Changed App Name and Version of device to reflect more of a device name and number scheme.
-  - Enabled long press middle button to Discard Prefs by default for future troubleshooting on device.
-  - Changed Text output to reflect Helium, and not TTL (Code referances ttn, just to prevent brakes in this awesome code)
+  - Changed App Name and Version of device to reflect more of a device name and
+  number scheme.
+  - Enabled long press middle button to Discard Prefs by default for future
+  troubleshooting on device.
+  - Changed Text output to reflect Helium, and not TTL (Code referances ttn,
+  just to prevent brakes in this awesome code)
   - Changed credentials file to use OTAA by default.
   - Changed GPS metric output text "Error", to "Accuracy/HDOP".
 */
 /*
   Main module
 
-  # Modified by Kyle T. Gabriel to fix issue with incorrect GPS data for TTNMapper
+  # Modified by Kyle T. Gabriel to fix issue with incorrect GPS data for
+  TTNMapper
 
   Copyright (C) 2018 by Xose Pérez <xose dot perez at gmail dot com>
 
@@ -41,10 +47,10 @@
 */
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <Wire.h>
 #include <axp20x.h>
 #include <lmic.h>
-#include <Preferences.h>
 
 #include "configuration.h"
 #include "gps.h"
@@ -62,11 +68,17 @@ float last_send_lat = 0;
 float last_send_lon = 0;
 float dist_moved = 0;
 
+// Deadzone (no uplink) location and radius
+float deadzone_lat = DEADZONE_LAT;
+float deadzone_lon = DEADZONE_LON;
+float deadzone_radius_m = DEADZONE_RADIUS_M;
+boolean in_deadzone = false;
+
 /* Defaults that can be overwritten by downlink messages */
 /* 32-bit int seconds is 50 days maximum */
-unsigned int rest_wait_s; // prefs REST_WAIT
-unsigned int rest_tx_interval_s; // prefs REST_TX_INTERVAL
-unsigned int stationary_tx_interval_s; // prefs STATIONARY_TX_INTERVAL
+unsigned int rest_wait_s;               // prefs REST_WAIT
+unsigned int rest_tx_interval_s;        // prefs REST_TX_INTERVAL
+unsigned int stationary_tx_interval_s;  // prefs STATIONARY_TX_INTERVAL
 unsigned int tx_interval_s;
 
 float battery_low_voltage = BATTERY_LOW_VOLTAGE;
@@ -91,7 +103,7 @@ esp_sleep_source_t wakeCause;  // the reason we booted this time
 
 char buffer[40];  // Screen buffer
 
-dr_t lorawan_sf; // prefs LORAWAN_SF
+dr_t lorawan_sf;  // prefs LORAWAN_SF
 char sf_name[40];
 
 unsigned long int ack_req = 0;
@@ -145,12 +157,12 @@ bool trySend() {
   unsigned long int now_millis = millis();
 
   // Here we try to filter out bogus GPS readings.
-  // It's not correct, and there should be a better indication from GPS that the fix is invalid
+  // It's not correct, and there should be a better indication from GPS that the
+  // fix is invalid
   if (gps_hdop() <= 0 || gps_hdop() > 50 || now_lat == 0.0               // Not fair to the whole equator
       || now_lat > 90.0 || now_lat < -90.0 || now_long == 0.0            // Not fair to King George
       || now_long < -180.0 || now_long > 180.0 || gps_altitude() == 0.0  // Not fair to the ocean
-      || gps_sats() < 4
-  )
+      || gps_sats() < 4)
     return false;  // Rejected as bogus GPS reading.
 
   // Don't attempt to send or update until we join Helium
@@ -167,15 +179,17 @@ bool trySend() {
 
   // distance from last transmitted location
   float dist_moved = gps_distanceBetween(last_send_lat, last_send_lon, now_lat, now_long);
+  float deadzone_dist = gps_distanceBetween(deadzone_lat, deadzone_lon, now_lat, now_long);
+  in_deadzone = (deadzone_dist <= deadzone_radius_m);
 
-#if 0
-  snprintf(buffer, sizeof(buffer), "Lat: %10.6f\n", gps_latitude());
-  screen_print(buffer);
-  snprintf(buffer, sizeof(buffer), "Long: %10.6f\n", gps_longitude());
-  screen_print(buffer);
-  snprintf(buffer, sizeof(buffer), "HDOP: %4.2fm\n", gps_hdop());
-  screen_print(buffer);
-#endif
+  /* 
+  Serial.printf("[Time %lu / %us, Moved %dm in %lus %c]\n", (now_millis - last_send_millis) / 1000, tx_interval_s, (int32_t)dist_moved,
+                (now_millis - last_moved_millis) / 1000, in_deadzone ? 'D' : '-');
+  */
+
+  // Deadzone means we don't send unless asked
+  if (in_deadzone && !justSendNow)
+    return false;
 
   char because = '?';
   if (justSendNow) {
@@ -196,7 +210,8 @@ bool trySend() {
   // SEND a Packet!
   // digitalWrite(RED_LED, LOW);
 
-  // The first distance-moved is crazy, since has no origin.. don't put it on screen.
+  // The first distance-moved is crazy, since has no origin.. don't put it on
+  // screen.
   if (dist_moved > 1000000)
     dist_moved = 0;
 
@@ -262,8 +277,7 @@ void mapper_restore_prefs(void) {
   tx_interval_s = stationary_tx_interval_s;
 }
 
-void mapper_save_prefs (void)
-{
+void mapper_save_prefs(void) {
   Preferences p;
 
   Serial.println("Saving prefs.");
@@ -277,8 +291,7 @@ void mapper_save_prefs (void)
   }
 }
 
-void mapper_erase_prefs (void)
-{
+void mapper_erase_prefs(void) {
 #if 0 
   nvs_flash_erase(); // erase the NVS partition and...
   nvs_flash_init(); // initialize the NVS partition.
@@ -381,7 +394,8 @@ void lora_msg_callback(uint8_t message) {
     screen_print("+\v");
     screen_update();
   }
-  // We only want to say 'packetSent' for our packets (not packets needed for joining)
+  // We only want to say 'packetSent' for our packets (not packets needed for
+  // joining)
   if (EV_TXCOMPLETE == message && packetQueued) {
     //    screen_print("sent.\n");
     packetQueued = false;
@@ -416,8 +430,9 @@ void lora_msg_callback(uint8_t message) {
     /*
      * Downlink format: FPort 1
      * 2 Bytes: Minimum Distance (1 to 65535) meters, or 0 no-change
-     * 2 Bytes: Minimum Time (1 to 65535) seconds (18.2 hours) between pings, or 0 no-change, or 0xFFFF to use default
-     * 1 Byte:  Battery voltage (2.0 to 4.5) for auto-shutoff, or 0 no-change
+     * 2 Bytes: Minimum Time (1 to 65535) seconds (18.2 hours) between pings, or
+     * 0 no-change, or 0xFFFF to use default 1 Byte:  Battery voltage (2.0
+     * to 4.5) for auto-shutoff, or 0 no-change
      */
     if (port == 1 && len == 5) {
       float new_distance = (float)(data[0] << 8 | data[1]);
@@ -489,13 +504,12 @@ void scanI2Cdevice(void) {
   Init the power manager chip
 
   axp192 power
-  DCDC1 0.7-3.5V @ 1200mA max -> OLED // If you turn this off you'll lose comms to the axp192 because the OLED and the axp192 share the same i2c bus
-  use ssd1306 sleep mode instead
-  DCDC2 -> unused 
-  DCDC3 0.7-3.5V @ 700mA max -> ESP32 (keep this on!) 
-  LDO1 30mA -> "VCC_RTC" charges GPS backup battery // charges the tiny J13 battery by the GPS to power the GPS ram (for a couple of days), can not be turned off
-  LDO2 200mA -> "LORA_VCC"
-  LDO3 200mA -> "GPS_VCC"
+  DCDC1 0.7-3.5V @ 1200mA max -> OLED // If you turn this off you'll lose comms
+  to the axp192 because the OLED and the axp192 share the same i2c bus use
+  ssd1306 sleep mode instead DCDC2 -> unused DCDC3 0.7-3.5V @ 700mA max -> ESP32
+  (keep this on!) LDO1 30mA -> "VCC_RTC" charges GPS backup battery // charges
+  the tiny J13 battery by the GPS to power the GPS ram (for a couple of days),
+  can not be turned off LDO2 200mA -> "LORA_VCC" LDO3 200mA -> "GPS_VCC"
 */
 
 void axp192Init() {
@@ -508,13 +522,14 @@ void axp192Init() {
       return;
     }
 
-    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);   // LORA radio
-    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);   // GPS main power
-    axp.setLDO3Voltage(3300);                     // For GPS Power.  Can run on 2.7v to 3.6v
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);  // OLED power
-    axp.setDCDC1Voltage(3300);                    // for the OLED power
-    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF); // Unconnected
-    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF); // "EXTEN" pin, normally unused
+    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);    // LORA radio
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);    // GPS main power
+    axp.setLDO3Voltage(3300);                      // For GPS Power.  Can run on 2.7v to 3.6v
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);   // OLED power
+    axp.setDCDC1Voltage(3300);                     // for the OLED power
+    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);  // Unconnected
+    axp.setPowerOutPut(AXP192_EXTEN,
+                       AXP202_OFF);  // "EXTEN" pin, normally unused
 
     // Flash the Blue LED until our first packet is transmitted
     axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
@@ -531,13 +546,16 @@ void axp192Init() {
 #endif
 
     pinMode(PMU_IRQ, INPUT_PULLUP);
-    attachInterrupt(PMU_IRQ, [] { pmu_irq = true; }, FALLING);
+    attachInterrupt(
+        PMU_IRQ, [] { pmu_irq = true; }, FALLING);
 
-    // Configure REG 36H: PEK press key parameter set.  Index values for argument!
+    // Configure REG 36H: PEK press key parameter set.  Index values for
+    // argument!
     axp.setStartupTime(2);      // "Power on time": 512mS
     axp.setlongPressTime(2);    // "Long time key press time": 2S
     axp.setShutdownTime(2);     // "Power off time" = 8S
-    axp.setTimeOutShutdown(1);  // "When key press time is longer than power off time, auto power off"
+    axp.setTimeOutShutdown(1);  // "When key press time is longer than power off
+                                // time, auto power off"
 
     // Serial.printf("AC IN: %fv\n", axp.getAcinVoltage());
     // Serial.printf("Vbus: %fv\n", axp.getVbusVoltage());
@@ -547,7 +565,7 @@ void axp192Init() {
     // Serial.printf("GPIO1 %fv\n", axp.getGPIO1Voltage());
     // Serial.printf("Batt In: %fmW\n", axp.getBattInpower());
     Serial.printf("Batt: %0.3fv\n", axp.getBattVoltage() / 1000.0);
-    Serial.printf("SysIPSOut: %0.3fv\n", axp.getSysIPSOUTVoltage()/1000.0);
+    Serial.printf("SysIPSOut: %0.3fv\n", axp.getSysIPSOUTVoltage() / 1000.0);
     Serial.printf("isVBUSPlug? %s\n", axp.isVBUSPlug() ? "Yes" : "No");
     Serial.printf("isChargingEnable? %s\n", axp.isChargeingEnable() ? "Yes" : "No");
     Serial.printf("ChargeCurrent: %.2fmA\n", axp.getSettingChargeCurrent());
@@ -557,7 +575,7 @@ void axp192Init() {
     Serial.printf("WarningLevel1: %d mV\n", axp.getVWarningLevel1());
     Serial.printf("WarningLevel2: %d mV\n", axp.getVWarningLevel2());
     Serial.printf("PowerDown:     %d mV\n", axp.getPowerDownVoltage());
-    
+
     Serial.printf("DCDC1Voltage: %d mV\n", axp.getDCDC1Voltage());
     Serial.printf("DCDC2Voltage: %d mV\n", axp.getDCDC2Voltage());
     Serial.printf("DCDC3Voltage: %d mV\n", axp.getDCDC3Voltage());
@@ -567,8 +585,14 @@ void axp192Init() {
 
     // Enable battery current measurements
     axp.adc1Enable(AXP202_BATT_CUR_ADC1, 1);
-    //    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ | AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
+    //    axp.enableIRQ(AXP202_VBUS_REMOVED_IRQ | AXP202_VBUS_CONNECT_IRQ |
+    //    AXP202_BATT_REMOVED_IRQ | AXP202_BATT_CONNECT_IRQ, 1);
     axp.enableIRQ(0xFFFFFFFFFF, 1);  // Give me ALL the interrupts you have.
+
+    // @Kenny_PDY discovered that low-battery voltage inhibits detecting the menu button.
+    // I don't know why, but might be a persistent interrupt that blocks the button?
+    axp.enableIRQ(APX202_APS_LOW_VOL_LEVEL1_IRQ | AXP202_APS_LOW_VOL_LEVEL2_IRQ, 0);
+
     axp.clearIRQ();
   } else {
     Serial.println("AXP192 not found!");
@@ -582,9 +606,11 @@ void wakeup() {
   /*
     Not using yet because we are using wake on all buttons being low
 
-    wakeButtons = esp_sleep_get_ext1_wakeup_status();       // If one of these buttons is set it was the reason we woke
-    if (wakeCause == ESP_SLEEP_WAKEUP_EXT1 && !wakeButtons) // we must have been using the 'all buttons rule for waking' to support busted boards, assume button
-    one was pressed wakeButtons = ((uint64_t)1) << buttons.gpios[0];
+    wakeButtons = esp_sleep_get_ext1_wakeup_status();       // If one of these
+    buttons is set it was the reason we woke if (wakeCause ==
+    ESP_SLEEP_WAKEUP_EXT1 && !wakeButtons) // we must have been using the 'all
+    buttons rule for waking' to support busted boards, assume button one was
+    pressed wakeButtons = ((uint64_t)1) << buttons.gpios[0];
   */
 
   Serial.printf("BOOT #%d!  cause:%d ext1:%08llx\n", bootCount, wakeCause, esp_sleep_get_ext1_wakeup_status());
@@ -602,9 +628,10 @@ void setup() {
 
   axp192Init();
 
-  // GPS sometimes gets wedged with no satellites in view and only a power-cycle saves it.
-  // Here we turn off power and the delay in screen setup is enough time to bonk the GPS
-  axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);   // GPS power off
+  // GPS sometimes gets wedged with no satellites in view and only a power-cycle
+  // saves it. Here we turn off power and the delay in screen setup is enough
+  // time to bonk the GPS
+  axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);  // GPS power off
 
   // Buttons & LED
   pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
@@ -614,25 +641,27 @@ void setup() {
   // Hello
   DEBUG_MSG("\n" APP_NAME " " APP_VERSION "\n");
 
-  mapper_restore_prefs(); // Fetch saved settings
+  mapper_restore_prefs();  // Fetch saved settings
 
-  // Don't init display if we don't have one or we are waking headless due to a timer event
+  // Don't init display if we don't have one or we are waking headless due to a
+  // timer event
   if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
     ssd1306_found = false;  // forget we even have the hardware
 
   if (ssd1306_found)
     screen_setup();
 
-  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);   // GPS power on, so it has time to setttle.
-  
+  // GPS power on, so it has time to setttle.
+  axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
+
   // Show logo on first boot after removing battery
 #ifndef ALWAYS_SHOW_LOGO
   if (bootCount <= 1)
 #endif
   {
-    screen_print(APP_NAME " " APP_VERSION, 0, 0); // Above the Logo
-    screen_print(APP_NAME " " APP_VERSION "\n"); // Add it to the log too
-    
+    screen_print(APP_NAME " " APP_VERSION, 0, 0);  // Above the Logo
+    screen_print(APP_NAME " " APP_VERSION "\n");   // Add it to the log too
+
     screen_show_logo();
     screen_update();
     delay(LOGO_DELAY);
@@ -652,9 +681,8 @@ void setup() {
     ttn_adr(LORAWAN_ADR);
   }
 
-  // Might have to add a longer delay here  
+  // Might have to add a longer delay here
   gps_setup();  // Init GPS baudrate and messages
-
 }
 
 // Power OFF -- does not return
@@ -772,10 +800,9 @@ const char *find_irq_name(void) {
   return irq_name;
 }
 
-
 struct menu_entry {
   const char *name;
-  void(*func)(void);
+  void (*func)(void);
 };
 
 void menu_send_now(void) {
@@ -811,17 +838,22 @@ void menu_time_minus(void) {
 }
 void menu_gps_passthrough(void) {
   axp.setChgLEDMode(AXP20X_LED_BLINK_1HZ);
-  axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF);   // Kill LORA radio
+  axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF);  // Kill LORA radio
   gps_passthrough();
   // Does not return.
 }
-void menu_experiment(void){
+void menu_experiment(void) {
   static boolean power_toggle = true;
 
   Serial.printf("%f mA  %f mW\n", axp.getBattChargeCurrent() - axp.getBattDischargeCurrent(), axp.getBattInpower());
 
-  axp.setPowerOutPut(AXP192_LDO3, power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
+  axp.setPowerOutPut(AXP192_LDO3,
+                     power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
   power_toggle = !power_toggle;
+}
+void menu_deadzone_here(void) {
+  deadzone_lat = gps_latitude();
+  deadzone_lon = gps_longitude();
 }
 
 dr_t sf_list[] = {DR_SF7, DR_SF8, DR_SF9, DR_SF10};
@@ -839,10 +871,10 @@ void menu_change_sf(void) {
   Serial.printf("New SF: %s\n", sf_name);
 }
 
-struct menu_entry menu[] = {{"Send Now", menu_send_now},         {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
-                            {"Distance -", menu_distance_minus}, {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
-                            {"Change SF", menu_change_sf},       {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
-                            {"Danger", menu_experiment}};
+struct menu_entry menu[] = {{"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
+                            {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
+                            {"Change SF", menu_change_sf},         {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
+                            {"Deadzone Here", menu_deadzone_here}, {"Danger", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
@@ -878,7 +910,7 @@ void loop() {
   if (in_menu && millis() - menu_idle_start > (5 * 1000))
     in_menu = false;
 
-  screen_loop(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
+  screen_loop(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next, is_highlighted, in_deadzone);
 
   update_activity();
 

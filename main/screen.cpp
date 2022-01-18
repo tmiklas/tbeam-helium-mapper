@@ -113,7 +113,8 @@ void screen_setup() {
 #include <axp20x.h>
 extern AXP20X_Class axp;  // TODO: This is evil
 
-void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats) {
+void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats,
+                   boolean in_deadzone) {
   if (!display)
     return;
 
@@ -126,7 +127,8 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->drawString(0, 2, buffer);
 
-    snprintf(buffer, sizeof(buffer), "%.2fV %.0fmA", axp.getBattVoltage() / 1000, axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
+    snprintf(buffer, sizeof(buffer), "%.2fV %.0fmA", axp.getBattVoltage() / 1000,
+             axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
   } else {
     // Message count and time
     // snprintf(buffer, sizeof(buffer), "%4d", ttn_get_count() % 10000);
@@ -145,10 +147,11 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
   // Satellite count
   display->setTextAlignment(TEXT_ALIGN_RIGHT);
   display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, itoa(sats, buffer, 10));
-  display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT, SATELLITE_IMAGE);
+  display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT,
+                   SATELLITE_IMAGE);
 
   // Second status row:
-  snprintf(buffer, sizeof(buffer), "%us %.0fm", tx_interval_s, min_dist_moved);
+  snprintf(buffer, sizeof(buffer), "%us %.0fm %c", tx_interval_s, min_dist_moved, in_deadzone ? 'D' : ' ');
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(0, 12, buffer);
 
@@ -159,13 +162,14 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
 }
 
 #define MARGIN 15
-void screen_loop(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats, boolean in_menu, const char *menu_prev,
-                 const char *menu_cur, const char *menu_next, boolean highlighted) {
+void screen_loop(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats, boolean in_menu,
+                 const char *menu_prev, const char *menu_cur, const char *menu_next, boolean highlighted,
+                 boolean in_deadzone) {
   if (!display)
     return;
 
   display->clear();
-  screen_header(tx_interval_s, min_dist_moved, cached_sf_name, sats);
+  screen_header(tx_interval_s, min_dist_moved, cached_sf_name, sats, in_deadzone);
 
   if (in_menu) {
     char buffer[40];
