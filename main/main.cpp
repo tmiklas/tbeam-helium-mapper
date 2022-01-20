@@ -1,29 +1,16 @@
 /*
- Helium Mapper build for LilyGo TTGO T-Beam v0.7, v1.0, and v1.1 boards.
- Copyright (C) 2021 by Max-Plastix
+ Helium Mapper build for LilyGo TTGO T-Beam v1.1 boards.
+ Copyright (C) 2021-2022 by Max-Plastix
 
  This is a development fork by Max-Plastix hosted here:
  https://github.com/Max-Plastix/tbeam-helium-mapper/
 
  This code comes from a number of developers and earlier efforts, visible in the
- lineage on Github and prior comments below. GPL makes this all possible --
- continue to modify, extend, and share!
+ full lineage on Github, including:  Fizzy, longfi-arduino, Kyle T. Gabriel, and Xose Pérez
+
+ GPL makes this all possible -- continue to modify, extend, and share!
  */
 
-/*
-  This module and those attached with it have been modified for the Helium
-  Network by Fizzy. The following has been changed from the original
-  modifications for Helium, by longfi-arduino:
-  - Added Helium Startup Logo
-  - Changed App Name and Version of device to reflect more of a device name and
-  number scheme.
-  - Enabled long press middle button to Discard Prefs by default for future
-  troubleshooting on device.
-  - Changed Text output to reflect Helium, and not TTL (Code referances ttn,
-  just to prevent brakes in this awesome code)
-  - Changed credentials file to use OTAA by default.
-  - Changed GPS metric output text "Error", to "Accuracy/HDOP".
-*/
 /*
   Main module
 
@@ -61,12 +48,12 @@
 // Defined in ttn.ino
 void ttn_register(void (*callback)(uint8_t message));
 
-bool justSendNow = true;  // Start by sending
-unsigned long int last_send_millis = 0;
-unsigned long int last_moved_millis = 0;
-float last_send_lat = 0;
+bool justSendNow = true;              // Start by firing off an Uplink
+unsigned long int last_send_ms = 0;   // Time of last uplink
+unsigned long int last_moved_ms = 0;  // Time of last movement
+float last_send_lat = 0;              // Last known location
 float last_send_lon = 0;
-float dist_moved = 0;
+float dist_moved = 0;  // Distance in m from last uplink
 
 // Deadzone (no uplink) location and radius
 float deadzone_lat = DEADZONE_LAT;
@@ -75,22 +62,21 @@ float deadzone_radius_m = DEADZONE_RADIUS_M;
 boolean in_deadzone = false;
 
 /* Defaults that can be overwritten by downlink messages */
-/* 32-bit int seconds is 50 days maximum */
+/* (32-bit int seconds allows for 50 days) */
 unsigned int rest_wait_s;               // prefs REST_WAIT
 unsigned int rest_tx_interval_s;        // prefs REST_TX_INTERVAL
 unsigned int stationary_tx_interval_s;  // prefs STATIONARY_TX_INTERVAL
-unsigned int tx_interval_s;
+unsigned int tx_interval_s;             // Currently-active time interval
 
 float battery_low_voltage = BATTERY_LOW_VOLTAGE;
 float min_dist_moved = MIN_DIST;
 
 AXP20X_Class axp;
-bool pmu_irq = false;
+bool pmu_irq = false;  // true when PMU IRQ pending
 
 bool ssd1306_found = false;
 bool axp192_found = false;
 
-// bool packetSent;
 bool packetQueued;
 bool isJoined = false;
 
@@ -154,7 +140,7 @@ void buildPacket(uint8_t txBuffer[]) {
 bool trySend() {
   float now_lat = gps_latitude();
   float now_long = gps_longitude();
-  unsigned long int now_millis = millis();
+  unsigned long int now = millis();
 
   // Here we try to filter out bogus GPS readings.
   // It's not correct, and there should be a better indication from GPS that the
@@ -182,9 +168,9 @@ bool trySend() {
   float deadzone_dist = gps_distanceBetween(deadzone_lat, deadzone_lon, now_lat, now_long);
   in_deadzone = (deadzone_dist <= deadzone_radius_m);
 
-  /* 
-  Serial.printf("[Time %lu / %us, Moved %dm in %lus %c]\n", (now_millis - last_send_millis) / 1000, tx_interval_s, (int32_t)dist_moved,
-                (now_millis - last_moved_millis) / 1000, in_deadzone ? 'D' : '-');
+  /*
+  Serial.printf("[Time %lu / %us, Moved %dm in %lus %c]\n", (now - last_send_ms) / 1000, tx_interval_s,
+  (int32_t)dist_moved, (now - last_moved_ms) / 1000, in_deadzone ? 'D' : '-');
   */
 
   // Deadzone means we don't send unless asked
@@ -198,9 +184,9 @@ bool trySend() {
     because = '>';
   } else if (dist_moved > min_dist_moved) {
     Serial.println("** MOVING");
-    last_moved_millis = now_millis;
+    last_moved_ms = now;
     because = 'D';
-  } else if (now_millis - last_send_millis > tx_interval_s * 1000) {
+  } else if (now - last_send_ms > tx_interval_s * 1000) {
     Serial.println("** TIME");
     because = 'T';
   } else {
@@ -215,7 +201,8 @@ bool trySend() {
   if (dist_moved > 1000000)
     dist_moved = 0;
 
-  snprintf(buffer, sizeof(buffer), "\n%d %c %4lus %4.0fm ", ttn_get_count(), because, (now_millis - last_send_millis) / 1000, dist_moved);
+  snprintf(buffer, sizeof(buffer), "\n%d %c %4lus %4.0fm ", ttn_get_count(), because, (now - last_send_ms) / 1000,
+           dist_moved);
   screen_print(buffer);
 
   // prepare the LoRa frame
@@ -238,7 +225,7 @@ bool trySend() {
     return false;
   }
 
-  last_send_millis = now_millis;
+  last_send_ms = now;
   last_send_lat = now_lat;
   last_send_lon = now_long;
 
@@ -590,7 +577,7 @@ void axp192Init() {
     axp.enableIRQ(0xFFFFFFFFFF, 1);  // Give me ALL the interrupts you have.
 
     // @Kenny_PDY discovered that low-battery voltage inhibits detecting the menu button.
-    // I don't know why, but might be a persistent interrupt that blocks the button?
+    // Disable these two IRQs until we figure out why it blocks the PEK button IRQs.
     axp.enableIRQ(APX202_APS_LOW_VOL_LEVEL1_IRQ | AXP202_APS_LOW_VOL_LEVEL2_IRQ, 0);
 
     axp.clearIRQ();
@@ -603,15 +590,6 @@ void axp192Init() {
 void wakeup() {
   bootCount++;
   wakeCause = esp_sleep_get_wakeup_cause();
-  /*
-    Not using yet because we are using wake on all buttons being low
-
-    wakeButtons = esp_sleep_get_ext1_wakeup_status();       // If one of these
-    buttons is set it was the reason we woke if (wakeCause ==
-    ESP_SLEEP_WAKEUP_EXT1 && !wakeButtons) // we must have been using the 'all
-    buttons rule for waking' to support busted boards, assume button one was
-    pressed wakeButtons = ((uint64_t)1) << buttons.gpios[0];
-  */
 
   Serial.printf("BOOT #%d!  cause:%d ext1:%08llx\n", bootCount, wakeCause, esp_sleep_get_ext1_wakeup_status());
 }
@@ -654,11 +632,8 @@ void setup() {
   // GPS power on, so it has time to setttle.
   axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
 
-  // Show logo on first boot after removing battery
-#ifndef ALWAYS_SHOW_LOGO
-  if (bootCount <= 1)
-#endif
-  {
+  // Show logo on first boot (as opposed to wake)
+  if (bootCount <= 1) {
     screen_print(APP_NAME " " APP_VERSION, 0, 0);  // Above the Logo
     screen_print(APP_NAME " " APP_VERSION "\n");   // Add it to the log too
 
@@ -670,18 +645,14 @@ void setup() {
   // Helium setup
   if (!ttn_setup()) {
     screen_print("[ERR] Radio module not found!\n");
-
-    if (REQUIRE_RADIO) {
-      screen_off();
-      sleep_forever();
-    }
-  } else {
-    ttn_register(lora_msg_callback);
-    ttn_join();
-    ttn_adr(LORAWAN_ADR);
+    sleep_forever();
   }
 
-  // Might have to add a longer delay here
+  ttn_register(lora_msg_callback);
+  ttn_join();
+  ttn_adr(LORAWAN_ADR);
+
+  // Might have to add a longer delay here for GPS boot-up
   gps_setup();  // Init GPS baudrate and messages
 }
 
@@ -712,7 +683,7 @@ void update_activity() {
     clean_shutdown();
   }
 
-  if (millis() - last_moved_millis > rest_wait_s * 1000)
+  if (millis() - last_moved_ms > rest_wait_s * 1000)
     tx_interval_s = rest_tx_interval_s;
   else
     tx_interval_s = stationary_tx_interval_s;
@@ -871,10 +842,11 @@ void menu_change_sf(void) {
   Serial.printf("New SF: %s\n", sf_name);
 }
 
-struct menu_entry menu[] = {{"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
-                            {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
-                            {"Change SF", menu_change_sf},         {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
-                            {"Deadzone Here", menu_deadzone_here}, {"Danger", menu_experiment}};
+struct menu_entry menu[] = {
+    {"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
+    {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
+    {"Change SF", menu_change_sf},         {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
+    {"Deadzone Here", menu_deadzone_here}, {"Danger", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
@@ -910,7 +882,8 @@ void loop() {
   if (in_menu && millis() - menu_idle_start > (5 * 1000))
     in_menu = false;
 
-  screen_loop(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next, is_highlighted, in_deadzone);
+  screen_loop(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next,
+              is_highlighted, in_deadzone);
 
   update_activity();
 

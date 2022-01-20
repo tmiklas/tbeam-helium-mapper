@@ -66,7 +66,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Less common Configuration iteams
 // -----------------------------------------------------------------------------
 
-//#define ALWAYS_SHOW_LOGO                        // It's a great logo.  Display it with pride.
 #define LOGO_DELAY 2000  // Time to show logo on first boot (ms)
 
 #define DEBUG_PORT Serial   // Serial debug port
@@ -105,10 +104,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 // General
 // -----------------------------------------------------------------------------
-
-#define REQUIRE_RADIO true  // If true, we will fail to start if the radio is not found
-
-
 // Wiring for I2C OLED display:
 //
 // Signal     Header   OLED
