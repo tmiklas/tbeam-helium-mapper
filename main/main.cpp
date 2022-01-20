@@ -80,6 +80,11 @@ bool axp192_found = false;
 bool packetQueued;
 bool isJoined = false;
 
+bool screen_stay_on = false;
+bool is_screen_on = true;
+int screen_idle_off_s = SCREEN_IDLE_OFF_S;
+uint32_t screen_last_active_ms = 0;
+
 // Buffer for Payload frame
 static uint8_t txBuffer[11];
 
@@ -218,7 +223,6 @@ bool trySend() {
   }
 
   // send it!
-
   packetQueued = true;
   if (!ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed)) {
     Serial.println("Surprise send failure!");
@@ -229,6 +233,7 @@ bool trySend() {
   last_send_lat = now_lat;
   last_send_lon = now_long;
 
+  screen_last_active_ms = now;
   return true;  // We did it!
 }
 
@@ -672,6 +677,7 @@ void clean_shutdown(void) {
 }
 
 void update_activity() {
+  uint32_t now = millis();
   float bat_volts = axp.getBattVoltage() / 1000;
   float charge_ma = axp.getBattChargeCurrent();
   // float discharge_ma = axp.getBatChargeCurrent();
@@ -683,10 +689,22 @@ void update_activity() {
     clean_shutdown();
   }
 
-  if (millis() - last_moved_ms > rest_wait_s * 1000)
+  if (now - last_moved_ms > rest_wait_s * 1000)
     tx_interval_s = rest_tx_interval_s;
   else
     tx_interval_s = stationary_tx_interval_s;
+
+  if (now - screen_last_active_ms > screen_idle_off_s * 1000) {
+    if (is_screen_on) {
+      is_screen_on = false;
+      screen_off();
+    }
+  } else {
+    if (!is_screen_on) {
+      is_screen_on = true;
+      screen_on();
+    }
+  }
 }
 
 /* I must know what that interrupt was for! */
@@ -826,6 +844,9 @@ void menu_deadzone_here(void) {
   deadzone_lat = gps_latitude();
   deadzone_lon = gps_longitude();
 }
+void menu_stay_on(void) {
+  screen_stay_on = !screen_stay_on;
+}
 
 dr_t sf_list[] = {DR_SF7, DR_SF8, DR_SF9, DR_SF10};
 #define SF_ENTRIES (sizeof(sf_list) / sizeof(sf_list[0]))
@@ -846,7 +867,7 @@ struct menu_entry menu[] = {
     {"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
     {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
     {"Change SF", menu_change_sf},         {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
-    {"Deadzone Here", menu_deadzone_here}, {"Danger", menu_experiment}};
+    {"Deadzone Here", menu_deadzone_here}, {"Stay On", menu_stay_on},         {"Danger", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
@@ -887,12 +908,8 @@ void loop() {
 
   update_activity();
 
-  /*
-    if (packetSent) {
-      packetSent = false;
-    } */
-
   // If any interrupts on PMIC, report the name
+  // PEK button handler
   if (axp192_found && pmu_irq) {
     const char *irq_name;
     pmu_irq = false;
@@ -908,13 +925,16 @@ void loop() {
       screen_print(buffer);
     }
     axp.clearIRQ();
+    screen_last_active_ms = millis();
   }
 
+  // Middle Button handler
   static uint32_t pressTime = 0;
   if (!digitalRead(MIDDLE_BUTTON_PIN)) {
     // Pressure is on
     if (!pressTime) {  // just started a new press
       pressTime = millis();
+      screen_last_active_ms = pressTime;
       is_highlighted = true;
     }
   } else if (pressTime) {

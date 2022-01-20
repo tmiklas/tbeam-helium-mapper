@@ -39,6 +39,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define REST_WAIT               (30 * 60)  // If we still haven't moved in this many seconds, start sending even slower
 #define REST_TX_INTERVAL        (10 * 60)  // Slow resting ping frequency in seconds
 
+#define SCREEN_IDLE_OFF_S       (30)    // If there are no Uplinks sent for this long, turn the screen off.
+
 #define BATTERY_LOW_VOLTAGE 3.4  // Below this voltage, power off until USB power allows charging
 
 #define LORAWAN_PORT 2              // FPort for Uplink messages -- must match Helium Console Decoder script!
@@ -48,8 +50,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Deadzone defines a circular area where no map packets will originate.
 // Set Radius to zero to disable, or leave it enabled to select center position from menu.
 // (Thanks to @Woutch for the name)
+#ifndef DEADZONE_LAT
 #define DEADZONE_LAT 34.5678
+#endif
+#ifndef DEADZONE_LON
 #define DEADZONE_LON -123.4567
+#endif
 #define DEADZONE_RADIUS_M 500  // meters
 
 // Uncomment to enable discarding network settings by long pressing second button
