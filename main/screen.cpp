@@ -114,11 +114,13 @@ void screen_setup() {
 extern AXP20X_Class axp;  // TODO: This is evil
 
 void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats,
-                   boolean in_deadzone) {
+                   boolean in_deadzone, boolean stay_on) {
   if (!display)
     return;
 
   char buffer[40];
+
+  display->clear();
 
   // Cycle display every 3 seconds
   if (millis() % 6000 < 3000) {
@@ -151,7 +153,8 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
                    SATELLITE_IMAGE);
 
   // Second status row:
-  snprintf(buffer, sizeof(buffer), "%us %.0fm %c", tx_interval_s, min_dist_moved, in_deadzone ? 'D' : ' ');
+  snprintf(buffer, sizeof(buffer), "%us %.0fm %c%c", tx_interval_s, min_dist_moved, in_deadzone ? 'D' : ' ',
+           stay_on ? 'S' : ' ');
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(0, 12, buffer);
 
@@ -162,14 +165,10 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
 }
 
 #define MARGIN 15
-void screen_loop(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats, boolean in_menu,
-                 const char *menu_prev, const char *menu_cur, const char *menu_next, boolean highlighted,
-                 boolean in_deadzone) {
+void screen_body(boolean in_menu, const char *menu_prev, const char *menu_cur, const char *menu_next,
+                 boolean highlighted) {
   if (!display)
     return;
-
-  display->clear();
-  screen_header(tx_interval_s, min_dist_moved, cached_sf_name, sats, in_deadzone);
 
   if (in_menu) {
     char buffer[40];

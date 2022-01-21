@@ -867,7 +867,7 @@ struct menu_entry menu[] = {
     {"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
     {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
     {"Change SF", menu_change_sf},         {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
-    {"Deadzone Here", menu_deadzone_here}, {"Stay On", menu_stay_on},         {"Danger", menu_experiment}};
+    {"Deadzone Here", menu_deadzone_here}, {"Stay On", menu_stay_on},         {"Experiment", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
@@ -896,6 +896,11 @@ void menu_selected(void) {
   menu[menu_entry].func();
 }
 
+void update_screen (void){
+  screen_header(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_deadzone, screen_stay_on);
+  screen_body(in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
+}
+
 void loop() {
   gps_loop();
   ttn_loop();
@@ -903,9 +908,7 @@ void loop() {
   if (in_menu && millis() - menu_idle_start > (5 * 1000))
     in_menu = false;
 
-  screen_loop(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_menu, menu_prev, menu_cur, menu_next,
-              is_highlighted, in_deadzone);
-
+  update_screen();
   update_activity();
 
   // If any interrupts on PMIC, report the name
