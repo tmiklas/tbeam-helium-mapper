@@ -504,6 +504,45 @@ void scanI2Cdevice(void) {
   can not be turned off LDO2 200mA -> "LORA_VCC" LDO3 200mA -> "GPS_VCC"
 */
 
+int axp_charge_to_ma(int set) {
+  switch (set) {
+    case 0:
+      return 100;
+    case 1:
+      return 190;
+    case 2:
+      return 280;
+    case 3:
+      return 360;
+    case 4:
+      return 450;
+    case 5:
+      return 550;
+    case 6:
+      return 630;
+    case 7:
+      return 700;
+    case 8:
+      return 780;
+    case 9:
+      return 880;
+    case 10:
+      return 960;
+    case 11:
+      return 1000;
+    case 12:
+      return 1080;
+    case 13:
+      return 1160;
+    case 14:
+      return 1240;
+    case 15:
+      return 1320;
+    default:
+      return -1;
+  }
+}
+
 void axp192Init() {
   if (axp192_found) {
     if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
@@ -514,14 +553,14 @@ void axp192Init() {
       return;
     }
 
-    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);    // LORA radio
-    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);    // GPS main power
-    axp.setLDO3Voltage(3300);                      // For GPS Power.  Can run on 2.7v to 3.6v
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);   // OLED power
-    axp.setDCDC1Voltage(3300);                     // for the OLED power
-    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);  // Unconnected
-    axp.setPowerOutPut(AXP192_EXTEN,
-                       AXP202_OFF);  // "EXTEN" pin, normally unused
+    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);        // LORA radio
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);        // GPS main power
+    axp.setLDO3Voltage(3300);                          // For GPS Power.  Can run on 2.7v to 3.6v
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);       // OLED power
+    axp.setDCDC1Voltage(3300);                         // for the OLED power
+    axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);      // Unconnected
+    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);      // "EXTEN" pin, normally unused
+    axp.setChargeControlCur(AXP1XX_CHARGE_CUR_550MA);  // Default 0x1000 = 780mA, more than we can get from USB
 
     // Flash the Blue LED until our first packet is transmitted
     axp.setChgLEDMode(AXP20X_LED_BLINK_4HZ);
@@ -556,13 +595,15 @@ void axp192Init() {
     // Serial.printf("GPIO0 %fv\n", axp.getGPIO0Voltage());
     // Serial.printf("GPIO1 %fv\n", axp.getGPIO1Voltage());
     // Serial.printf("Batt In: %fmW\n", axp.getBattInpower());
-    Serial.printf("Batt: %0.3fv\n", axp.getBattVoltage() / 1000.0);
+    Serial.printf("Battery: %0.3fv\n", axp.getBattVoltage() / 1000.0);
     Serial.printf("SysIPSOut: %0.3fv\n", axp.getSysIPSOUTVoltage() / 1000.0);
     Serial.printf("isVBUSPlug? %s\n", axp.isVBUSPlug() ? "Yes" : "No");
     Serial.printf("isChargingEnable? %s\n", axp.isChargeingEnable() ? "Yes" : "No");
-    Serial.printf("ChargeCurrent: %.2fmA\n", axp.getSettingChargeCurrent());
-    Serial.printf("ChargeControlCurrent: %d\n", axp.getChargeControlCur());
-    Serial.printf("Charge: %d%%\n", axp.getBattPercentage());
+    // Doesn't work on AXP192 because it has a different charge current curve:
+    // Serial.printf("ChargeCurrent: %.2fmA\n", axp.getSettingChargeCurrent());
+    Serial.printf("ChargeControlCurrent: %d = %dmA\n", axp.getChargeControlCur(),
+                  axp_charge_to_ma(axp.getChargeControlCur()));
+    Serial.printf("Battery Charge Level: %d%%\n", axp.getBattPercentage());
 
     Serial.printf("WarningLevel1: %d mV\n", axp.getVWarningLevel1());
     Serial.printf("WarningLevel2: %d mV\n", axp.getVWarningLevel2());
@@ -659,6 +700,8 @@ void setup() {
 
   // Might have to add a longer delay here for GPS boot-up
   gps_setup();  // Init GPS baudrate and messages
+
+  Serial.printf("Deadzone: %f.0m @ %f, %f\n", deadzone_radius_m, deadzone_lat, deadzone_lon);
 }
 
 // Power OFF -- does not return
@@ -743,9 +786,13 @@ const char *find_irq_name(void) {
     irq_name = "BattTempHigh";
   else if (axp.isChipOvertemperatureIRQ())
     irq_name = "ChipOvertemperature";
-  else if (axp.isChargingCurrentLessIRQ())
+  else if (axp.isChargingCurrentLessIRQ()) {
     irq_name = "ChargingCurrentLess";
-  else if (axp.isDC2VoltageLessIRQ())
+    // The Charging Current (770mA max feed) is less than requested
+    // Persistent IRQ.  Clear it after showing it once.
+    // TODO: Show it every X minutes?  Adjust charge current request?
+    axp.enableIRQ(AXP202_CHARGE_LOW_CUR_IRQ, 0);
+  } else if (axp.isDC2VoltageLessIRQ())
     irq_name = "DC2VoltageLess";
   else if (axp.isDC3VoltageLessIRQ())
     irq_name = "DC3VoltageLess";
@@ -896,7 +943,7 @@ void menu_selected(void) {
   menu[menu_entry].func();
 }
 
-void update_screen (void){
+void update_screen(void) {
   screen_header(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_deadzone, screen_stay_on);
   screen_body(in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
 }
