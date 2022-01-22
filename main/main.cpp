@@ -492,18 +492,8 @@ void scanI2Cdevice(void) {
   /* else  Serial.println("done\n"); */
 }
 
-/**
-  Init the power manager chip
-
-  axp192 power
-  DCDC1 0.7-3.5V @ 1200mA max -> OLED // If you turn this off you'll lose comms
-  to the axp192 because the OLED and the axp192 share the same i2c bus use
-  ssd1306 sleep mode instead DCDC2 -> unused DCDC3 0.7-3.5V @ 700mA max -> ESP32
-  (keep this on!) LDO1 30mA -> "VCC_RTC" charges GPS backup battery // charges
-  the tiny J13 battery by the GPS to power the GPS ram (for a couple of days),
-  can not be turned off LDO2 200mA -> "LORA_VCC" LDO3 200mA -> "GPS_VCC"
-*/
-
+/* The AXP library computes this incorrectly for AXP192.
+   It's just a fixed mapping table from the datasheet */
 int axp_charge_to_ma(int set) {
   switch (set) {
     case 0:
@@ -543,6 +533,18 @@ int axp_charge_to_ma(int set) {
   }
 }
 
+/**
+  Initialize the AXP192 power manager chip.
+
+  DCDC1 0.7-3.5V @ 1200mA max -> OLED
+  If you turn the OLED off, it will drag down the I2C lines and block the bus from the AXP192 which shares it.
+  Use SSD1306 sleep mode instead
+  
+  DCDC3 0.7-3.5V @ 700mA max -> ESP32 (keep this on!)
+  LDO1 30mA -> "VCC_RTC" charges GPS tiny J13 backup battery
+  LDO2 200mA -> "LORA_VCC"
+  LDO3 200mA -> "GPS_VCC"
+*/
 void axp192Init() {
   if (axp192_found) {
     if (!axp.begin(Wire, AXP192_SLAVE_ADDRESS)) {
@@ -553,13 +555,13 @@ void axp192Init() {
       return;
     }
 
-    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);        // LORA radio
-    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);        // GPS main power
-    axp.setLDO3Voltage(3300);                          // For GPS Power.  Can run on 2.7v to 3.6v
-    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);       // OLED power
-    axp.setDCDC1Voltage(3300);                         // for the OLED power
+    axp.setPowerOutPut(AXP192_LDO2, AXP202_ON);        // LORA radio 200mA "LORA_VCC"
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);        // GPS power 200mA "GPS_VCC"
+    axp.setLDO3Voltage(3300);                          // Voltage for GPS Power.  (Neo-6 can take 2.7v to 3.6v)
+    axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);       // OLED power, 1200mA max
+    axp.setDCDC1Voltage(3300);                         // Voltage or the OLED SSD1306
     axp.setPowerOutPut(AXP192_DCDC2, AXP202_OFF);      // Unconnected
-    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);      // "EXTEN" pin, normally unused
+    axp.setPowerOutPut(AXP192_EXTEN, AXP202_OFF);      // "EXTEN" pin, unused
     axp.setChargeControlCur(AXP1XX_CHARGE_CUR_550MA);  // Default 0x1000 = 780mA, more than we can get from USB
 
     // Flash the Blue LED until our first packet is transmitted
@@ -575,7 +577,7 @@ void axp192Init() {
     Serial.printf("LDO3: %s\n", axp.isLDO3Enable() ? "ENABLE" : "DISABLE");
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
 #endif
-
+    // Fire an interrupt on falling edge.  Note that some IRQs repeat/persist.
     pinMode(PMU_IRQ, INPUT_PULLUP);
     attachInterrupt(
         PMU_IRQ, [] { pmu_irq = true; }, FALLING);
@@ -585,8 +587,7 @@ void axp192Init() {
     axp.setStartupTime(2);      // "Power on time": 512mS
     axp.setlongPressTime(2);    // "Long time key press time": 2S
     axp.setShutdownTime(2);     // "Power off time" = 8S
-    axp.setTimeOutShutdown(1);  // "When key press time is longer than power off
-                                // time, auto power off"
+    axp.setTimeOutShutdown(1);  // "When key press time is longer than power off time, auto power off"
 
     // Serial.printf("AC IN: %fv\n", axp.getAcinVoltage());
     // Serial.printf("Vbus: %fv\n", axp.getVbusVoltage());
