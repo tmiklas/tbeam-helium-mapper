@@ -56,7 +56,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef DEADZONE_LON
 #define DEADZONE_LON -123.4567
 #endif
+#ifndef DEADZONE_RADIUS_M
 #define DEADZONE_RADIUS_M 500  // meters
+#endif
 
 // Uncomment to enable discarding network settings by long pressing second button
 #define PREFS_DISCARD
