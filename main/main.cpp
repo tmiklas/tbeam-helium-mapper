@@ -738,7 +738,7 @@ void update_activity() {
   else
     tx_interval_s = stationary_tx_interval_s;
 
-  if (now - screen_last_active_ms > screen_idle_off_s * 1000) {
+  if (!screen_stay_on && now - screen_last_active_ms > screen_idle_off_s * 1000) {
     if (is_screen_on) {
       is_screen_on = false;
       screen_off();
