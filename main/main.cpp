@@ -81,6 +81,7 @@ bool packetQueued;
 bool isJoined = false;
 
 bool screen_stay_on = false;
+bool screen_stay_off = false;
 bool is_screen_on = true;
 int screen_idle_off_s = SCREEN_IDLE_OFF_S;
 uint32_t screen_last_active_ms = 0;
@@ -738,13 +739,14 @@ void update_activity() {
   else
     tx_interval_s = stationary_tx_interval_s;
 
-  if (!screen_stay_on && now - screen_last_active_ms > screen_idle_off_s * 1000) {
-    if (is_screen_on) {
+  // Has the screen been on for longer than idle time?
+  if (now - screen_last_active_ms > screen_idle_off_s * 1000) {
+    if (is_screen_on && !screen_stay_on) {
       is_screen_on = false;
       screen_off();
     }
   } else {
-    if (!is_screen_on) {
+    if (!is_screen_on && !screen_stay_off) {
       is_screen_on = true;
       screen_on();
     }
