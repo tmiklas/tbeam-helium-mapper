@@ -674,8 +674,10 @@ void setup() {
   if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
     ssd1306_found = false;  // forget we even have the hardware
 
+  // This creates the display object, so if we don't call it.. all screen ops are do-nothing.
   if (ssd1306_found)
     screen_setup();
+  is_screen_on = true;
 
   // GPS power on, so it has time to setttle.
   axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);
@@ -745,7 +747,7 @@ void update_activity() {
       is_screen_on = false;
       screen_off();
     }
-  } else {
+  } else { // Else we had some recent activity.  Turn on?
     if (!is_screen_on && !screen_stay_off) {
       is_screen_on = true;
       screen_on();
