@@ -45,15 +45,21 @@
 #include "sleep.h"
 #include "ttn.h"
 
+#define FPORT_MAPPER 2  // FPort for Uplink messages -- must match Helium Console Decoder script!
+#define FPORT_STATUS 5
+#define FPORT_GPSLOST 6
+#define STATUS_BOOT 1
+
 // Defined in ttn.ino
 void ttn_register(void (*callback)(uint8_t message));
 
-bool justSendNow = true;              // Start by firing off an Uplink
-unsigned long int last_send_ms = 0;   // Time of last uplink
-unsigned long int last_moved_ms = 0;  // Time of last movement
-float last_send_lat = 0;              // Last known location
-float last_send_lon = 0;
-float dist_moved = 0;  // Distance in m from last uplink
+bool justSendNow = true;                // Send one at boot, regardless of deadzone?
+unsigned long int last_send_ms = 0;     // Time of last uplink
+unsigned long int last_moved_ms = 0;    // Time of last movement
+unsigned long int last_gpslost_ms = 0;  // Time of last gps-lost packet
+float last_send_lat = 0;                // Last known location
+float last_send_lon = 0;                //
+float dist_moved = 0;                   // Distance in m from last uplink
 
 // Deadzone (no uplink) location and radius
 float deadzone_lat = DEADZONE_LAT;
@@ -63,10 +69,23 @@ boolean in_deadzone = false;
 
 /* Defaults that can be overwritten by downlink messages */
 /* (32-bit int seconds allows for 50 days) */
+unsigned int stationary_tx_interval_s;  // prefs STATIONARY_TX_INTERVAL
 unsigned int rest_wait_s;               // prefs REST_WAIT
 unsigned int rest_tx_interval_s;        // prefs REST_TX_INTERVAL
-unsigned int stationary_tx_interval_s;  // prefs STATIONARY_TX_INTERVAL
-unsigned int tx_interval_s;             // Currently-active time interval
+
+unsigned int tx_interval_s;  // Currently-active time interval
+
+enum activity_state { ACTIVITY_MOVING, ACTIVITY_REST, ACTIVITY_SLEEP, ACTIVITY_GPS_LOST, ACTIVITY_WOKE };
+enum activity_state active_state = ACTIVITY_MOVING;
+boolean never_rest = NEVER_REST;
+
+/* Maybe these moves to prefs eventually? */
+unsigned int sleep_wait_s = SLEEP_WAIT;
+unsigned int sleep_tx_interval_s = SLEEP_TX_INTERVAL;
+
+unsigned int gps_lost_wait_s = GPS_LOST_WAIT;
+unsigned int gps_lost_ping_s = GPS_LOST_PING;
+uint32_t last_fix_time = 0;
 
 float battery_low_voltage = BATTERY_LOW_VOLTAGE;
 float min_dist_moved = MIN_DIST;
@@ -85,6 +104,7 @@ bool screen_stay_off = false;
 bool is_screen_on = true;
 int screen_idle_off_s = SCREEN_IDLE_OFF_S;
 uint32_t screen_last_active_ms = 0;
+boolean in_menu = false;
 
 // Buffer for Payload frame
 static uint8_t txBuffer[11];
@@ -101,29 +121,12 @@ char sf_name[40];
 unsigned long int ack_req = 0;
 unsigned long int ack_rx = 0;
 
-// Same format as CubeCell mappers
-void buildPacket(uint8_t txBuffer[]) {
+// Store Lat & Long in six bytes of payload
+void pack_lat_lon(float lat, float lon) {
   uint32_t LatitudeBinary;
   uint32_t LongitudeBinary;
-  uint16_t altitudeGps;
-  // uint8_t hdopGps;
-  uint8_t sats;
-  uint16_t speed;
-
-  LatitudeBinary = ((gps_latitude() + 90) / 180.0) * 16777215;
-  LongitudeBinary = ((gps_longitude() + 180) / 360.0) * 16777215;
-  altitudeGps = (uint16_t)gps_altitude();
-  speed = (uint16_t)gps_speed();  // convert from float
-  sats = gps_sats();
-
-  sprintf(buffer, "Lat: %f, ", gps_latitude());
-  Serial.print(buffer);
-  sprintf(buffer, "Long: %f, ", gps_longitude());
-  Serial.print(buffer);
-  sprintf(buffer, "Alt: %f, ", gps_altitude());
-  Serial.print(buffer);
-  sprintf(buffer, "Sats: %d", sats);
-  Serial.println(buffer);
+  LatitudeBinary = ((lat + 90) / 180.0) * 16777215;
+  LongitudeBinary = ((lon + 180) / 360.0) * 16777215;
 
   txBuffer[0] = (LatitudeBinary >> 16) & 0xFF;
   txBuffer[1] = (LatitudeBinary >> 8) & 0xFF;
@@ -131,19 +134,90 @@ void buildPacket(uint8_t txBuffer[]) {
   txBuffer[3] = (LongitudeBinary >> 16) & 0xFF;
   txBuffer[4] = (LongitudeBinary >> 8) & 0xFF;
   txBuffer[5] = LongitudeBinary & 0xFF;
+}
+
+uint8_t battery_byte(void) {
+  uint16_t batteryVoltage = ((float_t)((float_t)(axp.getBattVoltage()) / 10.0) + .5);
+  return (uint8_t)((batteryVoltage - 200) & 0xFF);
+}
+
+// Prepare a packet for the Mapper
+void build_mapper_packet() {
+  float lat;
+  float lon;
+  uint16_t altitudeGps;
+  // uint8_t hdopGps;
+  uint8_t sats;
+  uint16_t speed;
+
+  lat = gps_latitude();
+  lon = gps_longitude();
+  pack_lat_lon(lat, lon);
+  altitudeGps = (uint16_t)gps_altitude();
+  speed = (uint16_t)gps_speed();  // convert from float
+  sats = gps_sats();
+
+  sprintf(buffer, "Lat: %f, ", lat);
+  Serial.print(buffer);
+  sprintf(buffer, "Long: %f, ", lon);
+  Serial.print(buffer);
+  sprintf(buffer, "Alt: %f, ", gps_altitude());
+  Serial.print(buffer);
+  sprintf(buffer, "Sats: %d", sats);
+  Serial.println(buffer);
+
   txBuffer[6] = (altitudeGps >> 8) & 0xFF;
   txBuffer[7] = altitudeGps & 0xFF;
 
   txBuffer[8] = ((unsigned char *)(&speed))[0];
-
-  uint16_t batteryVoltage = ((float_t)((float_t)(axp.getBattVoltage()) / 10.0) + .5);
-  txBuffer[9] = (uint8_t)((batteryVoltage - 200) & 0xFF);
+  txBuffer[9] = battery_byte();
 
   txBuffer[10] = sats & 0xFF;
 }
 
+boolean send_uplink(uint8_t *txBuffer, uint8_t length, uint8_t fport, boolean confirmed) {
+  if (confirmed) {
+    Serial.println("ACK requested");
+    screen_print("? ");
+    digitalWrite(RED_LED, LOW);  // Light LED
+    ack_req++;
+  }
+
+  // send it!
+  packetQueued = true;
+  if (!ttn_send(txBuffer, length, fport, confirmed)) {
+    Serial.println("Surprise send failure!");
+    return false;
+  }
+  return true;
+}
+
+bool status_uplink(uint8_t status, uint8_t value) {
+  pack_lat_lon(last_send_lat, last_send_lon);
+  txBuffer[6] = battery_byte();
+  txBuffer[7] = status;
+  txBuffer[8] = value;
+  Serial.printf("Tx: STATUS %d %d\n", status, value);
+  screen_print("\nTX STATUS ");
+  return send_uplink(txBuffer, 9, FPORT_STATUS, 0);
+}
+
+bool gpslost_uplink(void) {
+  uint16_t minutes_lost;
+
+  minutes_lost = (last_fix_time - millis()) / 1000 / 60;
+  pack_lat_lon(last_send_lat, last_send_lon);
+  txBuffer[6] = battery_byte();
+  txBuffer[7] = gps_sats();
+  txBuffer[8] = (minutes_lost >> 8) & 0xFF;
+  txBuffer[9] = minutes_lost & 0xFF;
+  Serial.printf("Tx: GPSLOST %d\n", minutes_lost);
+  screen_print("\nTX GPSLOST ");
+  return send_uplink(txBuffer, 10, FPORT_GPSLOST, 0);
+}
+
 // Send a packet, if one is warranted
-bool trySend() {
+bool mapper_uplink() {
   float now_lat = gps_latitude();
   float now_long = gps_longitude();
   unsigned long int now = millis();
@@ -189,7 +263,7 @@ bool trySend() {
     Serial.println("** JUST_SEND_NOW");
     because = '>';
   } else if (dist_moved > min_dist_moved) {
-    Serial.println("** MOVING");
+    Serial.println("** DIST");
     last_moved_ms = now;
     because = 'D';
   } else if (now - last_send_ms > tx_interval_s * 1000) {
@@ -212,23 +286,14 @@ bool trySend() {
   screen_print(buffer);
 
   // prepare the LoRa frame
-  buildPacket(txBuffer);
+  build_mapper_packet();
 
   // Want an ACK on this one?
   bool confirmed = (LORAWAN_CONFIRMED_EVERY > 0) && (ttn_get_count() % LORAWAN_CONFIRMED_EVERY == 0);
-  if (confirmed) {
-    Serial.println("ACK requested");
-    screen_print("? ");
-    digitalWrite(RED_LED, LOW);  // Light LED
-    ack_req++;
-  }
 
-  // send it!
-  packetQueued = true;
-  if (!ttn_send(txBuffer, sizeof(txBuffer), LORAWAN_PORT, confirmed)) {
-    Serial.println("Surprise send failure!");
+  // Send it!
+  if (!send_uplink(txBuffer, 11, FPORT_MAPPER, confirmed))
     return false;
-  }
 
   last_send_ms = now;
   last_send_lat = now_lat;
@@ -237,13 +302,6 @@ bool trySend() {
   screen_last_active_ms = now;
   return true;  // We did it!
 }
-
-/*
-Mapper namespace
-mapper {
-
-}
-*/
 
 void mapper_restore_prefs(void) {
   Preferences p;
@@ -296,40 +354,6 @@ void mapper_erase_prefs(void) {
   }
 }
 
-#if 0
-void doDeepSleep(uint64_t msecToWake)
-{
-  Serial.printf("Entering deep sleep for %llu seconds\n", msecToWake / 1000);
-
-  // not using wifi yet, but once we are this is needed to shutoff the radio hw
-  // esp_wifi_stop();
-
-  screen_off(); // datasheet says this will draw only 10ua
-  LMIC_shutdown(); // cleanly shutdown the radio
-
-  if (axp192_found) {
-    // turn on after initial testing with real hardware
-    axp.setPowerOutPut(AXP192_LDO2, AXP202_OFF); // LORA radio
-    axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF); // GPS main power
-  }
-
-  // FIXME - use an external 10k pulldown so we can leave the RTC peripherals powered off
-  // until then we need the following lines
-  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
-
-  // Only GPIOs which are have RTC functionality can be used in this bit map: 0,2,4,12-15,25-27,32-39.
-  uint64_t gpioMask = (1ULL << MIDDLE_BUTTON_PIN);
-
-  // FIXME change polarity so we can wake on ANY_HIGH instead - that would allow us to use all three buttons (instead of just the first)
-  gpio_pullup_en((gpio_num_t) MIDDLE_BUTTON_PIN);
-
-  esp_sleep_enable_ext1_wakeup(gpioMask, ESP_EXT1_WAKEUP_ALL_LOW);
-
-  esp_sleep_enable_timer_wakeup(msecToWake * 1000ULL); // call expects usecs
-  esp_deep_sleep_start();                              // TBD mA sleep current (battery)
-}
-#endif
-
 // LoRa message event callback
 void lora_msg_callback(uint8_t message) {
   static boolean seen_joined = false, seen_joining = false;
@@ -380,7 +404,6 @@ void lora_msg_callback(uint8_t message) {
     screen_print("Joined Helium!\n");
     ttn_set_sf(lorawan_sf);  // Joining seems to leave it at SF10?
     ttn_get_sf_name(sf_name, sizeof(sf_name));
-    justSendNow = true;
   }
 
   if (EV_TXSTART == message) {
@@ -540,7 +563,7 @@ int axp_charge_to_ma(int set) {
   DCDC1 0.7-3.5V @ 1200mA max -> OLED
   If you turn the OLED off, it will drag down the I2C lines and block the bus from the AXP192 which shares it.
   Use SSD1306 sleep mode instead
-  
+
   DCDC3 0.7-3.5V @ 700mA max -> ESP32 (keep this on!)
   LDO1 30mA -> "VCC_RTC" charges GPS tiny J13 backup battery
   LDO2 200mA -> "LORA_VCC"
@@ -642,12 +665,21 @@ void wakeup() {
   Serial.printf("BOOT #%d!  cause:%d ext1:%08llx\n", bootCount, wakeCause, esp_sleep_get_ext1_wakeup_status());
 }
 
+#include <BluetoothSerial.h>
+#include <WiFi.h>
+#include <esp_bt.h>
+
 void setup() {
   // Debug
 #ifdef DEBUG_PORT
   DEBUG_PORT.begin(SERIAL_BAUD);
 #endif
   wakeup();
+
+  // Make sure WiFi and BT are off
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_OFF);
+  btStop();
 
   Wire.begin(I2C_SDA, I2C_SCL);
   scanI2Cdevice();
@@ -702,10 +734,53 @@ void setup() {
   ttn_join();
   ttn_adr(LORAWAN_ADR);
 
-  // Might have to add a longer delay here for GPS boot-up
+  // Might have to add a longer delay here for GPS boot-up.  Takes longer to sync if we talk to it too early.
+  delay(100);
   gps_setup();  // Init GPS baudrate and messages
 
   Serial.printf("Deadzone: %f.0m @ %f, %f\n", deadzone_radius_m, deadzone_lat, deadzone_lon);
+}
+
+// Should be around 0.5mA ESP32 consumption, plus OLED controller and PMIC overhead.
+void low_power_sleep(uint32_t seconds) {
+  boolean was_screen_on = is_screen_on;
+  if (is_screen_on) {
+    screen_off();
+    is_screen_on = false;
+  }
+
+  digitalWrite(RED_LED, HIGH);  // Off
+
+  if (axp192_found) {
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);  // GPS power
+    axp.setChgLEDMode(AXP20X_LED_OFF);
+  }
+
+  gpio_wakeup_enable((gpio_num_t)MIDDLE_BUTTON_PIN, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)PMU_IRQ, GPIO_INTR_LOW_LEVEL);
+  esp_sleep_enable_gpio_wakeup();
+
+  esp_sleep_enable_timer_wakeup(seconds * 1000ULL * 1000ULL);  // call expects usecs
+  esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
+
+  esp_light_sleep_start();
+  // If we woke by keypress (7) then turn on the screen
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
+    // Try not to puke, but we pretend we moved if they hit a key, to exit SLEEP
+    last_moved_ms = screen_last_active_ms = millis();
+  }
+
+  if (axp192_found) {
+    axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);  // GPS power
+  }
+
+  if (was_screen_on) {
+    screen_on();
+    is_screen_on = true;
+  }
+
+  delay(100);  // GPS doesn't respond right away.. not ready for baud-rate test.
+  gps_setup();
 }
 
 // Power OFF -- does not return
@@ -719,15 +794,44 @@ void clean_shutdown(void) {
     axp.shutdown();  // PMIC power off
   } else {
     while (1)
-      ;  // ?? What to do here
+      ;  // ?? What to do here.  burn power?
   }
 }
 
+uint32_t woke_time_ms = 0;
+uint32_t woke_fix_count = 0;
+
+/* Determine the current activity state */
 void update_activity() {
+  static enum activity_state last_active_state = ACTIVITY_MOVING;
+
+  if (active_state != last_active_state) {
+    switch (active_state) {
+      case ACTIVITY_MOVING:
+        Serial.println("//MOVING//");
+        break;
+      case ACTIVITY_REST:
+        Serial.println("//REST//");
+        break;
+      case ACTIVITY_SLEEP:
+        Serial.println("//SLEEP//");
+        break;
+      case ACTIVITY_GPS_LOST:
+        Serial.println("//GPS_LOST//");
+        break;
+      case ACTIVITY_WOKE:
+        Serial.println("//WOKE//");
+        break;
+      default:
+        Serial.println("//WTF?//");
+        break;
+    }
+    last_active_state = active_state;
+  }
+
   uint32_t now = millis();
   float bat_volts = axp.getBattVoltage() / 1000;
   float charge_ma = axp.getBattChargeCurrent();
-  // float discharge_ma = axp.getBatChargeCurrent();
 
   if (axp192_found && axp.isBatteryConnect() && bat_volts < battery_low_voltage && charge_ma < 99.0) {
     Serial.println("Low Battery OFF");
@@ -736,10 +840,62 @@ void update_activity() {
     clean_shutdown();
   }
 
-  if (now - last_moved_ms > rest_wait_s * 1000)
-    tx_interval_s = rest_tx_interval_s;
-  else
-    tx_interval_s = stationary_tx_interval_s;
+  if (active_state == ACTIVITY_WOKE) {
+    if (gps_sentencesWithFix() != woke_fix_count) {
+      mapper_uplink();
+      active_state = ACTIVITY_REST;
+    } else if (now - woke_time_ms > gps_lost_wait_s * 1000) {
+      active_state = ACTIVITY_GPS_LOST;
+    }
+    return;  // else stay in WOKE
+  }
+
+  if (active_state == ACTIVITY_SLEEP && !in_menu) {
+    Serial.printf("Sleep %d...", tx_interval_s);
+    low_power_sleep(tx_interval_s);
+    active_state = ACTIVITY_WOKE;
+    woke_time_ms = millis();
+    woke_fix_count = gps_sentencesWithFix();
+    return;
+  }
+
+  // In order of precedence:
+  if (never_rest) {
+    active_state = ACTIVITY_MOVING;
+  } else if (now - last_moved_ms > sleep_wait_s * 1000) {
+    active_state = ACTIVITY_SLEEP;
+  } else if (now - last_fix_time > gps_lost_wait_s * 1000) {
+    active_state = ACTIVITY_GPS_LOST;
+  } else if (now - last_moved_ms > rest_wait_s * 1000) {
+    active_state = ACTIVITY_REST;
+  } else {
+    active_state = ACTIVITY_MOVING;
+  }
+
+  // If we have USB power, keep GPS on all the time; don't sleep
+  if (1 && axp192_found && axp.isVBUSPlug()) {
+    if (active_state == ACTIVITY_SLEEP)
+      active_state = ACTIVITY_REST;
+  }
+
+  switch (active_state) {
+    case ACTIVITY_MOVING:
+      tx_interval_s = stationary_tx_interval_s;
+      break;
+    case ACTIVITY_REST:
+      tx_interval_s = rest_tx_interval_s;
+      break;
+    case ACTIVITY_GPS_LOST:
+      tx_interval_s = gps_lost_ping_s;
+      break;
+    case ACTIVITY_SLEEP:
+      tx_interval_s = sleep_tx_interval_s;
+      break;
+    default:
+      // ???
+      tx_interval_s = stationary_tx_interval_s;
+      break;
+  }
 
   // Has the screen been on for longer than idle time?
   if (now - screen_last_active_ms > screen_idle_off_s * 1000) {
@@ -747,7 +903,7 @@ void update_activity() {
       is_screen_on = false;
       screen_off();
     }
-  } else { // Else we had some recent activity.  Turn on?
+  } else {  // Else we had some recent activity.  Turn on?
     if (!is_screen_on && !screen_stay_off) {
       is_screen_on = true;
       screen_on();
@@ -884,6 +1040,7 @@ void menu_gps_passthrough(void) {
   // Does not return.
 }
 void menu_experiment(void) {
+#if 0
   static boolean power_toggle = true;
 
   Serial.printf("%f mA  %f mW\n", axp.getBattChargeCurrent() - axp.getBattDischargeCurrent(), axp.getBattInpower());
@@ -891,11 +1048,21 @@ void menu_experiment(void) {
   axp.setPowerOutPut(AXP192_LDO3,
                      power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
   power_toggle = !power_toggle;
+#endif
+
+  Serial.println("Sleeping for 5...");
+  low_power_sleep(5);
+  Serial.println("Woke.");
 }
 void menu_deadzone_here(void) {
   deadzone_lat = gps_latitude();
   deadzone_lon = gps_longitude();
+  deadzone_radius_m = DEADZONE_RADIUS_M;
 }
+void menu_no_deadzone(void) {
+  deadzone_radius_m = 0.0;
+}
+
 void menu_stay_on(void) {
   screen_stay_on = !screen_stay_on;
 }
@@ -918,14 +1085,14 @@ void menu_change_sf(void) {
 struct menu_entry menu[] = {
     {"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
     {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
-    {"Change SF", menu_change_sf},         {"Flush Prefs", menu_flush_prefs}, {"USB GPS", menu_gps_passthrough},
-    {"Deadzone Here", menu_deadzone_here}, {"Stay On", menu_stay_on},         {"Experiment", menu_experiment}};
+    {"Change SF", menu_change_sf},         {"Full Reset", menu_flush_prefs},  {"USB GPS", menu_gps_passthrough},
+    {"Deadzone Here", menu_deadzone_here}, {"No Deadzone", menu_no_deadzone}, {"Stay On", menu_stay_on},
+    {"Experiment", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
 const char *menu_cur;
 const char *menu_next;
-boolean in_menu = false;
 boolean is_highlighted = false;
 int menu_entry = 0;
 static uint32_t menu_idle_start = 0;  // what tick should we call this press long enough
@@ -949,19 +1116,30 @@ void menu_selected(void) {
 }
 
 void update_screen(void) {
-  screen_header(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_deadzone, screen_stay_on);
+  screen_header(tx_interval_s, min_dist_moved, sf_name, gps_sats(), in_deadzone, screen_stay_on, never_rest);
   screen_body(in_menu, menu_prev, menu_cur, menu_next, is_highlighted);
 }
 
 void loop() {
-  gps_loop();
+  static uint32_t last_fix_count = 0;
+  static boolean booted = true;
+  uint32_t now_fix_count;
+  uint32_t now = millis();
+
+  gps_loop(0 /* active_state == ACTIVITY_WOKE */);  // Update GPS
+  now_fix_count = gps_sentencesWithFix();
+  if (now_fix_count != last_fix_count) {
+    last_fix_count = now_fix_count;
+    last_fix_time = now;
+  }
+
   ttn_loop();
 
-  if (in_menu && millis() - menu_idle_start > (5 * 1000))
+  // menu timeout
+  if (in_menu && now - menu_idle_start > (MENU_TIMEOUT_S)*1000)
     in_menu = false;
 
   update_screen();
-  update_activity();
 
   // If any interrupts on PMIC, report the name
   // PEK button handler
@@ -973,14 +1151,14 @@ void loop() {
 
     if (axp.isPEKShortPressIRQ())
       menu_press();
-    else if (axp.isPEKLongtPressIRQ())  // They want to turn OFF
+    else if (axp.isPEKLongtPressIRQ())  // want to turn OFF
       menu_power_off();
     else {
       snprintf(buffer, sizeof(buffer), "\n* %s ", irq_name);
       screen_print(buffer);
     }
     axp.clearIRQ();
-    screen_last_active_ms = millis();
+    screen_last_active_ms = now;
   }
 
   // Middle Button handler
@@ -988,8 +1166,8 @@ void loop() {
   if (!digitalRead(MIDDLE_BUTTON_PIN)) {
     // Pressure is on
     if (!pressTime) {  // just started a new press
-      pressTime = millis();
-      screen_last_active_ms = pressTime;
+      pressTime = now;
+      screen_last_active_ms = now;
       is_highlighted = true;
     }
   } else if (pressTime) {
@@ -1002,16 +1180,36 @@ void loop() {
     }
     is_highlighted = false;
 
-    if (millis() - pressTime > 1000) {
+    if (now - pressTime > 1000) {
       // Was a long press
     } else {
       // Was a short press
     }
     pressTime = 0;  // Released
+    screen_last_active_ms = now;
   }
 
-  if (trySend()) {
-    // Good send
+  update_activity();
+
+  if (booted) {
+    // status_uplink(STATUS_BOOT, 0);
+    booted = 0;
+  }
+
+  if (active_state == ACTIVITY_GPS_LOST) {
+    now = millis();
+    if ((last_gpslost_ms == 0) ||  // first time losing GPS?
+        (now - last_gpslost_ms > GPS_LOST_PING * 1000)) {
+      gpslost_uplink();
+      last_gpslost_ms = now;
+    }
+  } else {
+    if (active_state != ACTIVITY_SLEEP)  // not sure about this
+      last_gpslost_ms = 0;               // Reset if we regained GPS
+  }
+
+  if (mapper_uplink()) {
+    // Good send, light Blue LED
     if (axp192_found)
       axp.setChgLEDMode(AXP20X_LED_LOW_LEVEL);
   } else {
