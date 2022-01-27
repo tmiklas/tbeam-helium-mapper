@@ -45,11 +45,29 @@ float gps_speed() {
   return _gps.speed.kmph();
 }
 
-boolean fresh_gps = false;
+uint32_t gps_sentencesWithFix() {
+  return _gps.sentencesWithFix();
+}
+
+void gps_end(void) {
+  gpsSerial.end();
+}
 
 void gps_setup(void) {
-  gpsSerial.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
-  gpsSerial.setRxBufferSize(2048);  // Default is 256
+  static boolean serial_ready = false;
+  if (serial_ready) {
+    gpsSerial.updateBaudRate(GPS_BAUDRATE);
+  } else {
+    gpsSerial.begin(GPS_BAUDRATE, SERIAL_8N1, GPS_RX_PIN, GPS_TX_PIN);
+    gpsSerial.setRxBufferSize(2048);  // Default is 256
+    serial_ready = true;
+  }
+  // Drain any waiting garbage
+  while (gpsSerial.read() != -1)
+    ;
+  // Flush out line noise from our side
+  //char zeros[] = {0, 0, 0, 0, 0, 0};
+  //gpsSerial.write(zeros, sizeof(zeros));
 
   if (0)
     myGNSS.enableDebugging();
@@ -67,7 +85,7 @@ void gps_setup(void) {
     // Well, wasn't where we expected it
     changed_speed = true;
 
-    Serial.println("Trying 115200...");
+    // Serial.println("Trying 115200...");
     gpsSerial.updateBaudRate(115200);
     if (myGNSS.begin(gpsSerial)) {
       Serial.println("GPS found at 115200 baud");
@@ -75,7 +93,7 @@ void gps_setup(void) {
       continue;
     }
 
-    Serial.println("Trying 9600...");
+    // Serial.println("Trying 9600...");
     gpsSerial.updateBaudRate(9600);
     if (myGNSS.begin(gpsSerial)) {
       Serial.println("GPS found at 9600 baud");
@@ -83,7 +101,7 @@ void gps_setup(void) {
       continue;
     }
 
-    Serial.println("Trying 38400...");
+    // Serial.println("Trying 38400...");
     gpsSerial.updateBaudRate(38400);
     if (myGNSS.begin(gpsSerial)) {
       Serial.println("GPS found at 38400 baud");
@@ -91,7 +109,7 @@ void gps_setup(void) {
       continue;
     }
 
-    Serial.println("Trying 57600...");
+    // Serial.println("Trying 57600...");
     gpsSerial.updateBaudRate(57600);
     if (myGNSS.begin(gpsSerial)) {
       Serial.println("GPS found at 57600 baud");
@@ -128,11 +146,11 @@ void gps_setup(void) {
   myGNSS.disableNMEAMessage(UBX_NMEA_VLW, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
   myGNSS.disableNMEAMessage(UBX_NMEA_ZDA, COM_PORT_UART1);
-#endif  
+#endif
 
-  myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1); // Don't need SV list (on by default)
-  myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);  // For Speed
-  myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);  // For Time & Location & SV count
+  myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1);  // Don't need SV list (on by default)
+  myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);   // For Speed
+  myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);   // For Time & Location & SV count
 
   if (changed_speed)
     myGNSS.saveConfiguration();  // Save the current settings to flash and BBR
@@ -148,8 +166,11 @@ void gps_passthrough(void) {
   }
 }
 
-void gps_loop(void) {
+void gps_loop(boolean print_it) {
   while (gpsSerial.available()) {
-    _gps.encode(gpsSerial.read());
+    char c = gpsSerial.read();
+    if (print_it)
+      Serial.print(c);
+    _gps.encode(c);
   }
 }

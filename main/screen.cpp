@@ -114,7 +114,7 @@ void screen_setup() {
 extern AXP20X_Class axp;  // TODO: This is evil
 
 void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats,
-                   boolean in_deadzone, boolean stay_on) {
+                   boolean in_deadzone, boolean stay_on, boolean never_rest) {
   if (!display)
     return;
 
@@ -153,8 +153,8 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
                    SATELLITE_IMAGE);
 
   // Second status row:
-  snprintf(buffer, sizeof(buffer), "%us %.0fm %c%c", tx_interval_s, min_dist_moved, in_deadzone ? 'D' : ' ',
-           stay_on ? 'S' : ' ');
+  snprintf(buffer, sizeof(buffer), "%us %.0fm %c%c%c", tx_interval_s, min_dist_moved, in_deadzone ? 'D' : ' ',
+           stay_on ? 'S' : ' ', never_rest ? 'N' : ' ');
   display->setTextAlignment(TEXT_ALIGN_LEFT);
   display->drawString(0, 12, buffer);
 
