@@ -2,51 +2,20 @@
 #include "gps.h"
 
 #include <Arduino.h>
-#include <HardwareSerial.h>
-#include <TinyGPS++.h>
 
 #include "SparkFun_Ublox_Arduino_Library_Series_6_7.h"
+#include <HardwareSerial.h>
+#include <TinyGPS++.h>
 #include "configuration.h"
 
 HardwareSerial gpsSerial(GPS_SERIAL_NUM);
 
 SFE_UBLOX_GPS myGNSS;
-TinyGPSPlus _gps;
+
+TinyGPSPlus tGPS;
 
 void gps_time(char* buffer, uint8_t size) {
-  snprintf(buffer, size, "%02d:%02d:%02d", _gps.time.hour(), _gps.time.minute(), _gps.time.second());
-}
-
-float gps_latitude() {
-  return _gps.location.lat();
-}
-
-float gps_distanceBetween(float last_lat, float last_lon, float lat, float lon) {
-  return _gps.distanceBetween(last_lat, last_lon, lat, lon);
-}
-
-float gps_longitude() {
-  return _gps.location.lng();
-}
-
-float gps_altitude() {
-  return _gps.altitude.meters();
-}
-
-float gps_hdop() {
-  return _gps.hdop.hdop();
-}
-
-uint8_t gps_sats() {
-  return _gps.satellites.value();
-}
-
-float gps_speed() {
-  return _gps.speed.kmph();
-}
-
-uint32_t gps_sentencesWithFix() {
-  return _gps.sentencesWithFix();
+  snprintf(buffer, size, "%02d:%02d:%02d", tGPS.time.hour(), tGPS.time.minute(), tGPS.time.second());
 }
 
 void gps_end(void) {
@@ -171,6 +140,6 @@ void gps_loop(boolean print_it) {
     char c = gpsSerial.read();
     if (print_it)
       Serial.print(c);
-    _gps.encode(c);
+    tGPS.encode(c);
   }
 }
