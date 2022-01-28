@@ -140,7 +140,7 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
       display->drawString(0, 2, buffer);
     }
 
-    snprintf(buffer, sizeof(buffer), "%.2fV %.0fmA", axp.getBattVoltage() / 1000,
+    snprintf(buffer, sizeof(buffer), "%.2fV   %.0fmA", axp.getBattVoltage() / 1000,
              axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
 
     // display->setTextAlignment(TEXT_ALIGN_CENTER);
