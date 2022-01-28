@@ -110,45 +110,63 @@ void screen_setup() {
   display->setLogBuffer(4, 30);
 }
 
+void screen_end() {
+  if (display) {
+    screen_off();
+    display->end();
+    delete display;
+  }
+}
+
 #include <axp20x.h>
 extern AXP20X_Class axp;  // TODO: This is evil
 
-void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, int sats,
-                   boolean in_deadzone, boolean stay_on, boolean never_rest) {
+void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cached_sf_name, boolean in_deadzone,
+                   boolean stay_on, boolean never_rest) {
   if (!display)
     return;
 
   char buffer[40];
+  uint32_t sats = tGPS.satellites.value();
 
   display->clear();
 
   // Cycle display every 3 seconds
   if (millis() % 6000 < 3000) {
-    // 2 bytes of Device EUI with Voltage and Current
-    snprintf(buffer, sizeof(buffer), "#%03X", ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4));
-    display->setTextAlignment(TEXT_ALIGN_LEFT);
-    display->drawString(0, 2, buffer);
+    if (0) {
+      // 2 bytes of Device EUI with Voltage and Current
+      snprintf(buffer, sizeof(buffer), "#%03X", ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4));
+      display->setTextAlignment(TEXT_ALIGN_LEFT);
+      display->drawString(0, 2, buffer);
+    }
 
     snprintf(buffer, sizeof(buffer), "%.2fV %.0fmA", axp.getBattVoltage() / 1000,
              axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
-  } else {
-    // Message count and time
-    // snprintf(buffer, sizeof(buffer), "%4d", ttn_get_count() % 10000);
-    // display->setTextAlignment(TEXT_ALIGN_LEFT);
-    // display->drawString(0, 2, buffer);
 
-    if (sats < 3)
+    // display->setTextAlignment(TEXT_ALIGN_CENTER);
+    // display->drawString(display->getWidth() / 2, 2, buffer);
+    display->setTextAlignment(TEXT_ALIGN_LEFT);
+    display->drawString(0, 2, buffer);
+  } else {
+    // Time and HDOP
+    if (sats < 3) {
       snprintf(buffer, sizeof(buffer), "*** NO GPS ***");
-    else
-      gps_time(buffer, sizeof(buffer));
+      display->setTextAlignment(TEXT_ALIGN_CENTER);
+      display->drawString(display->getWidth() / 2, 2, buffer);
+    } else {
+      snprintf(buffer, sizeof(buffer), "#%03X  %02d:%02d:%02d",
+               ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4),  // little part of DevEUI
+               tGPS.time.hour(), tGPS.time.minute(), tGPS.time.second());
+
+      display->setTextAlignment(TEXT_ALIGN_LEFT);
+      display->drawString(0, 2, buffer);
+    }
   }
 
-  display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->drawString(display->getWidth() / 2, 2, buffer);
-
-  // Satellite count
+  // HDOP & Satellite count
+  snprintf(buffer, sizeof(buffer), "%2.1f   %d", tGPS.hdop.hdop(), sats);
   display->setTextAlignment(TEXT_ALIGN_RIGHT);
-  display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, itoa(sats, buffer, 10));
+  display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, buffer);
   display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT,
                    SATELLITE_IMAGE);
 
