@@ -240,8 +240,8 @@ enum mapper_uplink_result mapper_uplink() {
     return MAPPER_UPLINK_BADFIX;
 
   // HDOP is only a hint as to accuracy, but we can assume very bad HDOP is not worth mapping.
-  // https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation) suggests 10 is a good cutoff.
-  if (tGPS.hdop.hdop() > 10.0)
+  // https://en.wikipedia.org/wiki/Dilution_of_precision_(navigation) suggests 5 is a good cutoff.
+  if (tGPS.hdop.hdop() > 5.0)
     return MAPPER_UPLINK_BADFIX;
 
   // With the exception of a few places, a perfectly zero lat or long probably means we got a bad reading

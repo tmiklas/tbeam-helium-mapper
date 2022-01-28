@@ -128,19 +128,15 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
 
   char buffer[40];
   uint32_t sats = tGPS.satellites.value();
+  boolean no_gps = (sats < 3);
+  uint16_t devid_hint = ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4);
 
   display->clear();
 
   // Cycle display every 3 seconds
   if (millis() % 6000 < 3000) {
-    if (0) {
-      // 2 bytes of Device EUI with Voltage and Current
-      snprintf(buffer, sizeof(buffer), "#%03X", ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4));
-      display->setTextAlignment(TEXT_ALIGN_LEFT);
-      display->drawString(0, 2, buffer);
-    }
-
-    snprintf(buffer, sizeof(buffer), "%.2fV   %.0fmA", axp.getBattVoltage() / 1000,
+    // Voltage and Current
+    snprintf(buffer, sizeof(buffer), "%.2fV  %.0fmA", axp.getBattVoltage() / 1000,
              axp.getBattChargeCurrent() - axp.getBattDischargeCurrent());
 
     // display->setTextAlignment(TEXT_ALIGN_CENTER);
@@ -148,15 +144,22 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
     display->setTextAlignment(TEXT_ALIGN_LEFT);
     display->drawString(0, 2, buffer);
   } else {
-    // Time and HDOP
-    if (sats < 3) {
-      snprintf(buffer, sizeof(buffer), "*** NO GPS ***");
+    // ID & Time
+    if (no_gps) {
+      snprintf(buffer, sizeof(buffer), "#%03X", devid_hint);
+      display->setTextAlignment(TEXT_ALIGN_LEFT);
+      display->drawString(0, 2, buffer);
+
       display->setTextAlignment(TEXT_ALIGN_CENTER);
-      display->drawString(display->getWidth() / 2, 2, buffer);
+      display->drawString(display->getWidth() / 2, 2, "*** NO GPS ***");
+
+      snprintf(buffer, sizeof(buffer), "(%d)", sats);
+      display->setTextAlignment(TEXT_ALIGN_RIGHT);
+      display->drawString(display->getWidth(), 2, buffer);
+
     } else {
-      snprintf(buffer, sizeof(buffer), "#%03X  %02d:%02d:%02d",
-               ((DEVEUI[7] << 4) | (DEVEUI[6] & 0xF0) >> 4),  // little part of DevEUI
-               tGPS.time.hour(), tGPS.time.minute(), tGPS.time.second());
+      snprintf(buffer, sizeof(buffer), "#%03X  %02d:%02d:%02d", devid_hint, tGPS.time.hour(), tGPS.time.minute(),
+               tGPS.time.second());
 
       display->setTextAlignment(TEXT_ALIGN_LEFT);
       display->drawString(0, 2, buffer);
@@ -164,11 +167,13 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
   }
 
   // HDOP & Satellite count
-  snprintf(buffer, sizeof(buffer), "%2.1f   %d", tGPS.hdop.hdop(), sats);
-  display->setTextAlignment(TEXT_ALIGN_RIGHT);
-  display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, buffer);
-  display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT,
-                   SATELLITE_IMAGE);
+  if (!no_gps) {
+    snprintf(buffer, sizeof(buffer), "%2.1f   %d", tGPS.hdop.hdop(), sats);
+    display->setTextAlignment(TEXT_ALIGN_RIGHT);
+    display->drawString(display->getWidth() - SATELLITE_IMAGE_WIDTH - 4, 2, buffer);
+    display->drawXbm(display->getWidth() - SATELLITE_IMAGE_WIDTH, 0, SATELLITE_IMAGE_WIDTH, SATELLITE_IMAGE_HEIGHT,
+                     SATELLITE_IMAGE);
+  }
 
   // Second status row:
   snprintf(buffer, sizeof(buffer), "%us %.0fm %c%c%c", tx_interval_s, min_dist_moved, in_deadzone ? 'D' : ' ',
