@@ -82,6 +82,9 @@ enum activity_state { ACTIVITY_MOVING, ACTIVITY_REST, ACTIVITY_SLEEP, ACTIVITY_G
 enum activity_state active_state = ACTIVITY_MOVING;
 boolean never_rest = NEVER_REST;
 
+// Return status from mapper uplink, since we care about the flavor of the failure
+enum mapper_uplink_result { MAPPER_UPLINK_SUCCESS, MAPPER_UPLINK_BADFIX, MAPPER_UPLINK_NOLORA, MAPPER_UPLINK_NOTYET };
+
 /* Maybe these moves to prefs eventually? */
 unsigned int sleep_wait_s = SLEEP_WAIT;
 unsigned int sleep_tx_interval_s = SLEEP_TX_INTERVAL;
@@ -160,7 +163,7 @@ void build_mapper_packet() {
   altitudeGps = (uint16_t)tGPS.altitude.meters();
   speed = (uint16_t)tGPS.speed.kmph();  // convert from double
   if (speed > 255)
-    speed = 255; // don't wrap around.
+    speed = 255;  // don't wrap around.
   sats = tGPS.satellites.value();
 
   sprintf(buffer, "Lat: %f, ", lat);
@@ -221,8 +224,6 @@ bool gpslost_uplink(void) {
   screen_print("\nTX GPSLOST ");
   return send_uplink(txBuffer, 10, FPORT_GPSLOST, 0);
 }
-
-enum mapper_uplink_result { MAPPER_UPLINK_SUCCESS, MAPPER_UPLINK_BADFIX, MAPPER_UPLINK_NOLORA, MAPPER_UPLINK_NOTYET };
 
 // Send a packet, if one is warranted
 enum mapper_uplink_result mapper_uplink() {
