@@ -13,7 +13,8 @@
 			"string": "cpp",
 			"unordered_map": "cpp",
 			"unordered_set": "cpp",
-			"initializer_list": "cpp"
+			"initializer_list": "cpp",
+			"*.tcc": "cpp"
 		}
 	}
 }

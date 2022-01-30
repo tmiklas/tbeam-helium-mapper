@@ -99,8 +99,9 @@ float min_dist_moved = MIN_DIST;
 AXP20X_Class axp;
 bool pmu_irq = false;  // true when PMU IRQ pending
 
-bool ssd1306_found = false;
+bool oled_found = false;
 bool axp192_found = false;
+uint8_t oled_addr = 0; // i2c address of OLED controller
 
 bool packetQueued;
 bool isJoined = false;
@@ -498,7 +499,7 @@ void lora_msg_callback(uint8_t message) {
 void scanI2Cdevice(void) {
   byte err, addr;
   int nDevices = 0;
-  for (addr = 1; addr < 127; addr++) {
+  for (addr = 1; addr < 0x7F; addr++) {
     Wire.beginTransmission(addr);
     err = Wire.endTransmission();
     if (err == 0) {
@@ -511,9 +512,10 @@ void scanI2Cdevice(void) {
 #endif
       nDevices++;
 
-      if (addr == SSD1306_ADDRESS) {
-        ssd1306_found = true;
-        Serial.println("SSD1306 OLED display");
+      if (addr == 0x3C || addr == 0x78 || addr == 0x7E) {
+        oled_addr = addr;
+        oled_found = true;
+        Serial.printf("OLED at %02X\n", oled_addr);
       }
       if (addr == AXP192_SLAVE_ADDRESS) {
         axp192_found = true;
@@ -720,11 +722,11 @@ void setup() {
   // Don't init display if we don't have one or we are waking headless due to a
   // timer event
   if (0 && wakeCause == ESP_SLEEP_WAKEUP_TIMER)
-    ssd1306_found = false;  // forget we even have the hardware
+    oled_found = false;  // forget we even have the hardware
 
   // This creates the display object, so if we don't call it.. all screen ops are do-nothing.
-  if (ssd1306_found)
-    screen_setup();
+  if (oled_found)
+    screen_setup(oled_addr);
   is_screen_on = true;
 
   // GPS power on, so it has time to setttle.
@@ -794,7 +796,7 @@ void low_power_sleep(uint32_t seconds) {
   if (axp192_found) {
     axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);  // GPS power
     // axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);  // OLED power
-    // if (ssd1306_found)
+    // if (oled_found)
     //  screen_setup();
   }
 

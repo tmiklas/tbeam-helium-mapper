@@ -25,6 +25,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <Wire.h>
 
 #include "OLEDDisplay.h"
+#include "SH1106Wire.h"
 #include "SSD1306Wire.h"
 #include "configuration.h"
 #include "credentials.h"
@@ -34,8 +35,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define SCREEN_HEADER_HEIGHT 24
 
-SSD1306Wire *display;
+OLEDDisplay *display;
 uint8_t _screen_line = SCREEN_HEADER_HEIGHT - 1;
+
+enum display_types { DISPLAY_UNKNOWN, DISPLAY_SSD1306, DISPLAY_SH1106 };
+enum display_types display_type = DISPLAY_UNKNOWN;
 
 void screen_show_logo() {
   if (!display)
@@ -99,9 +103,77 @@ void screen_update() {
     display->display();
 }
 
-void screen_setup() {
+/*
+ * The SSD1306 and SH1106 controllers are almost the same, but different.
+ * Most importantly here, the SH1106 allows reading from the frame buffer, while the SSD1306 does not.
+ * We exploit this by writing two bytes and reading them back.  A mismatch probably means SSD1306.
+ * Probably.
+ */
+enum display_types display_get_type(uint8_t id) {
+  uint8_t err;
+  uint8_t b1, b2;
+
+  Wire.begin(I2C_SDA, I2C_SCL);
+  Wire.setClock(7000000);
+
+  Wire.beginTransmission(id);
+  uint8_t a[] = {0, 0, 0x10, 0xB0};
+  Wire.write(a, sizeof(a));
+  if ((err = Wire.endTransmission(false)) != 0) {
+    Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
+    return DISPLAY_UNKNOWN;
+  }
+
+  Wire.beginTransmission(id);
+  uint8_t b[] = {0x40, 'M', 'P'};
+  Wire.write(b, sizeof(b));
+  if ((err = Wire.endTransmission(false)) != 0) {
+    Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
+    return DISPLAY_UNKNOWN;
+  }
+
+  Wire.beginTransmission(id);
+  uint8_t c[] = {0, 0, 0x10};
+  Wire.write(c, sizeof(c));
+  if ((err = Wire.endTransmission(false)) != 0) {
+    Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
+    return DISPLAY_UNKNOWN;
+  }
+
+  Wire.beginTransmission(id);
+  Wire.write(0x40);
+  if ((err = Wire.endTransmission(false)) != 0) {
+    Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
+    return DISPLAY_UNKNOWN;
+  }
+
+  err = Wire.requestFrom((int)id, (int)3, (int)1);
+  if (err != 3) {
+    return DISPLAY_UNKNOWN;
+  }
+  Wire.read();  // Discard
+  b1 = Wire.read();
+  b2 = Wire.read();
+  Wire.endTransmission();
+
+  if (b1 == 'M' && b2 == 'P')
+    return DISPLAY_SH1106;
+  else
+    return DISPLAY_SSD1306;
+}
+
+void screen_setup(uint8_t addr) {
+  /* Attempt to determine which kind of display we're dealing with */
+  if (display_type == DISPLAY_UNKNOWN)
+    display_type = display_get_type(addr);
+
   // Display instance
-  display = new SSD1306Wire(SSD1306_ADDRESS, I2C_SDA, I2C_SCL);
+  if (display_type == DISPLAY_SSD1306)
+    display = new SSD1306Wire(addr, I2C_SDA, I2C_SCL);
+  else if (display_type == DISPLAY_SH1106)
+    display = new SH1106Wire(addr, I2C_SDA, I2C_SCL);
+  else
+    return;
   display->init();
   display->flipScreenVertically();
   display->setFont(Custom_ArialMT_Plain_10);

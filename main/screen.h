@@ -16,5 +16,5 @@ void screen_off(void);
 void screen_on(void);
 
 void screen_show_logo(void);
-void screen_setup(void);
+void screen_setup(uint8_t addr);
 void screen_end(void);
