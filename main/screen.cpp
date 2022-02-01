@@ -117,7 +117,12 @@ enum display_types display_get_type(uint8_t id) {
   Wire.setClock(7000000);
 
   Wire.beginTransmission(id);
-  uint8_t a[] = {0, 0, 0x10, 0xB0};
+  uint8_t a[] = {
+      0,     // co=0 DC=0 000000 to start command
+      0x00,  // Lower Column Address = 0
+      0x10,  // Higher Column Address = 0
+      0xB0   // Set Page Address 0
+  };
   Wire.write(a, sizeof(a));
   if ((err = Wire.endTransmission(false)) != 0) {
     Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
@@ -125,7 +130,7 @@ enum display_types display_get_type(uint8_t id) {
   }
 
   Wire.beginTransmission(id);
-  uint8_t b[] = {0x40, 'M', 'P'};
+  uint8_t b[] = {0x40, 'M', 'P'};  // co=0 DC=1 & 000000, then two bytes of data
   Wire.write(b, sizeof(b));
   if ((err = Wire.endTransmission(false)) != 0) {
     Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
@@ -133,7 +138,7 @@ enum display_types display_get_type(uint8_t id) {
   }
 
   Wire.beginTransmission(id);
-  uint8_t c[] = {0, 0, 0x10};
+  uint8_t c[] = {0, 0, 0x10}; // Back to Lower & Higher Column address 0
   Wire.write(c, sizeof(c));
   if ((err = Wire.endTransmission(false)) != 0) {
     Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
@@ -141,21 +146,21 @@ enum display_types display_get_type(uint8_t id) {
   }
 
   Wire.beginTransmission(id);
-  Wire.write(0x40);
+  Wire.write(0x40); // Data next
   if ((err = Wire.endTransmission(false)) != 0) {
     Serial.printf("err=%d EndTransmission=%d(%s)", err, Wire.lastError(), Wire.getErrorText(Wire.lastError()));
     return DISPLAY_UNKNOWN;
   }
-
   err = Wire.requestFrom((int)id, (int)3, (int)1);
   if (err != 3) {
     return DISPLAY_UNKNOWN;
   }
-  Wire.read();  // Discard
+  Wire.read();  // Must discard 1 byte
   b1 = Wire.read();
   b2 = Wire.read();
   Wire.endTransmission();
 
+  // If we read back what we wrote, memory is readable:
   if (b1 == 'M' && b2 == 'P')
     return DISPLAY_SH1106;
   else
@@ -230,7 +235,7 @@ void screen_header(unsigned int tx_interval_s, float min_dist_moved, char *cache
       display->drawString(display->getWidth(), 2, buffer);
 
     } else {
-      snprintf(buffer, sizeof(buffer), "#%03X  %02d:%02d:%02d", devid_hint, tGPS.time.hour(), tGPS.time.minute(),
+      snprintf(buffer, sizeof(buffer), "#%03X %02d:%02d:%02d", devid_hint, tGPS.time.hour(), tGPS.time.minute(),
                tGPS.time.second());
 
       display->setTextAlignment(TEXT_ALIGN_LEFT);

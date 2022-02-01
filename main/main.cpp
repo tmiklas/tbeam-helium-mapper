@@ -78,8 +78,8 @@ unsigned int rest_tx_interval_s;        // prefs REST_TX_INTERVAL
 
 unsigned int tx_interval_s;  // Currently-active time interval
 
-enum activity_state { ACTIVITY_MOVING, ACTIVITY_REST, ACTIVITY_SLEEP, ACTIVITY_GPS_LOST, ACTIVITY_WOKE };
-enum activity_state active_state = ACTIVITY_MOVING;
+enum activity_state { ACTIVITY_MOVING, ACTIVITY_REST, ACTIVITY_SLEEP, ACTIVITY_GPS_LOST, ACTIVITY_WOKE, ACTIVITY_INVALID };
+enum activity_state active_state = ACTIVITY_INVALID;
 boolean never_rest = NEVER_REST;
 
 // Return status from mapper uplink, since we care about the flavor of the failure
@@ -179,7 +179,7 @@ void build_mapper_packet() {
   txBuffer[6] = (altitudeGps >> 8) & 0xFF;
   txBuffer[7] = altitudeGps & 0xFF;
 
-  txBuffer[8] = ((unsigned char *)(&speed))[0];
+  txBuffer[8] = speed & 0xFF;
   txBuffer[9] = battery_byte();
 
   txBuffer[10] = sats & 0xFF;
@@ -619,7 +619,8 @@ void axp192Init() {
     Serial.printf("Exten: %s\n", axp.isExtenEnable() ? "ENABLE" : "DISABLE");
 #endif
     // Fire an interrupt on falling edge.  Note that some IRQs repeat/persist.
-    pinMode(PMU_IRQ, INPUT_PULLUP);
+    pinMode(PMU_IRQ, INPUT);
+    gpio_pullup_en((gpio_num_t)PMU_IRQ);
     attachInterrupt(
         PMU_IRQ, [] { pmu_irq = true; }, FALLING);
 
@@ -710,7 +711,8 @@ void setup() {
   axp.setPowerOutPut(AXP192_LDO3, AXP202_OFF);  // GPS power off
 
   // Buttons & LED
-  pinMode(MIDDLE_BUTTON_PIN, INPUT_PULLUP);
+  pinMode(MIDDLE_BUTTON_PIN, INPUT);
+  gpio_pullup_en((gpio_num_t)MIDDLE_BUTTON_PIN);
   pinMode(RED_LED, OUTPUT);
   digitalWrite(RED_LED, HIGH);  // Off
 
@@ -763,8 +765,10 @@ void setup() {
 void low_power_sleep(uint32_t seconds) {
   boolean was_screen_on = is_screen_on;
 
-  if (is_screen_on)
-    screen_off();
+  Serial.printf("Sleep %d..\n", seconds);
+  Serial.flush();
+  
+  screen_off();
 
   digitalWrite(RED_LED, HIGH);  // LED Off
 
@@ -784,6 +788,7 @@ void low_power_sleep(uint32_t seconds) {
   esp_sleep_enable_gpio_wakeup();
 
   esp_sleep_enable_timer_wakeup(seconds * 1000ULL * 1000ULL);  // call expects usecs
+  // Some GPIOs need this to stay on?
   // esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
   esp_light_sleep_start();
@@ -791,7 +796,13 @@ void low_power_sleep(uint32_t seconds) {
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
     // Try not to puke, but we pretend we moved if they hit a key, to exit SLEEP and restart timers
     last_moved_ms = screen_last_active_ms = millis();
+    was_screen_on = true; // Lies
+    Serial.println("(GPIO)");
   }
+  Serial.println("..woke");
+
+  if (was_screen_on)
+    screen_on();
 
   if (axp192_found) {
     axp.setPowerOutPut(AXP192_LDO3, AXP202_ON);  // GPS power
@@ -799,9 +810,6 @@ void low_power_sleep(uint32_t seconds) {
     // if (oled_found)
     //  screen_setup();
   }
-
-  if (was_screen_on)
-    screen_on();
 
   delay(100);   // GPS doesn't respond right away.. not ready for baud-rate test.
   gps_setup();  // Resync with GPS
@@ -827,7 +835,7 @@ uint32_t woke_fix_count = 0;
 
 /* Determine the current activity state */
 void update_activity() {
-  static enum activity_state last_active_state = ACTIVITY_MOVING;
+  static enum activity_state last_active_state = ACTIVITY_INVALID;
 
   if (active_state != last_active_state) {
     switch (active_state) {
@@ -878,7 +886,6 @@ void update_activity() {
   }
 
   if (active_state == ACTIVITY_SLEEP && !in_menu) {
-    Serial.printf("Sleep %d...", tx_interval_s);
     low_power_sleep(tx_interval_s);
     active_state = ACTIVITY_WOKE;
     woke_time_ms = millis();
@@ -1187,10 +1194,10 @@ void loop() {
   uint32_t now = millis();
 
   gps_loop(0 /* active_state == ACTIVITY_WOKE */);  // Update GPS
-  now_fix_count = tGPS.sentencesWithFix();
+  now_fix_count = tGPS.sentencesWithFix();  // Did we get a new fix? 
   if (now_fix_count != last_fix_count) {
     last_fix_count = now_fix_count;
-    last_fix_time = now;
+    last_fix_time = now; // Note the time of most recent fix
   }
 
   ttn_loop();
