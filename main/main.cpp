@@ -758,6 +758,10 @@ void setup() {
   delay(100);
   gps_setup();  // Init GPS baudrate and messages
 
+  // This is bad.. we can't find the AXP192 PMIC, so no menu key detect:
+  if (!axp192_found)
+    screen_print("** Missing AXP192! **\n");
+
   Serial.printf("Deadzone: %f.0m @ %f, %f\n", deadzone_radius_m, deadzone_lat, deadzone_lon);
 }
 
@@ -971,9 +975,9 @@ const char *find_irq_name(void) {
   else if (axp.isVbusOverVoltageIRQ())
     irq_name = "VbusOverVoltage";
   else if (axp.isVbusPlugInIRQ())
-    irq_name = "VbusPlugIn";
+    irq_name = "USB Connected";  // "VbusPlugIn";
   else if (axp.isVbusRemoveIRQ())
-    irq_name = "VbusRemove";
+    irq_name = "USB Removed";    // "VbusRemove";
   else if (axp.isVbusLowVHOLDIRQ())
     irq_name = "VbusLowVHOLD";
   else if (axp.isBattPlugInIRQ())
