@@ -192,43 +192,13 @@ for Frame Count 1850, a time-triggered packet after 2 minutes and only 1 meter a
 How often Acks are requested is configurable, defaulting to one-every-ten.
 
 # Uplink Payload
-The Payload Port and byte content have been selected to match the format used by CubeCell mappers as well:
-Lat, Long, Altitude, Speed, Battery, and Sats.  This common decoder function can now be used for both TTGO and CubeCell mappers:
+The Payload Port and byte content have been selected to match the format used by CubeCell mappers as well.
 
-```
-// From https://github.com/hkicko/CubeCell-GPS-Helium-Mapper
-function Decoder(bytes, port) {
-  var decoded = {};
-  
-  var latitude = ((bytes[0]<<16)>>>0) + ((bytes[1]<<8)>>>0) + bytes[2];
-  latitude = (latitude / 16777215.0 * 180) - 90;
-  
-  var longitude = ((bytes[3]<<16)>>>0) + ((bytes[4]<<8)>>>0) + bytes[5];
-  longitude = (longitude / 16777215.0 * 360) - 180;
-  
-  switch (port)
-  {
-    case 2:
-      decoded.latitude = latitude;
-      decoded.longitude = longitude; 
-      
-      var altValue = ((bytes[6]<<8)>>>0) + bytes[7];
-      var sign = bytes[6] & (1 << 7);
-      if(sign) decoded.altitude = 0xFFFF0000 | altValue;
-      else decoded.altitude = altValue;
-      
-      decoded.speed = parseFloat((((bytes[8]))/1.609).toFixed(2));
-      decoded.battery = parseFloat((bytes[9]/100 + 2).toFixed(2));
-      decoded.sats = bytes[10];
-      decoded.accuracy = 2.5; // Bogus Accuracy required by Cargo/Mapper integration
-      break;
-  }
-     
-  return decoded;  
-}
-```
+A custom Decoder Function translates the payload bytes into a set of JSON values required by the Integrations for both Mapper and Cargo.
+This turns the Base64 Payload into values for Lat, Long, Altitude, Speed, Battery, and Sats.
 
-Note that HDOP is not sent in this data.
+The [Decoder Function](https://github.com/Max-Plastix/tbeam-helium-mapper/blob/main/console-decoders/unified_decoder.js) can be pasted directly into the Console custom function.
+(Note that HDOP is not sent in this data.)
 
 # Downlink
 This builds adds the option to reconfigure the Mapper remotely via Helium Downlink (network to device).  You can change the maximum Time Interval, Distance, and Battery Cut-off voltage remotely.
