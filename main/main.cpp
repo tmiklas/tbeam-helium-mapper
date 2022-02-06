@@ -203,6 +203,9 @@ boolean send_uplink(uint8_t *txBuffer, uint8_t length, uint8_t fport, boolean co
 }
 
 bool status_uplink(uint8_t status, uint8_t value) {
+  if (!SEND_STATUS_UPLINKS)
+    return false;
+
   pack_lat_lon(last_send_lat, last_send_lon);
   txBuffer[6] = battery_byte();
   txBuffer[7] = status;
@@ -215,6 +218,9 @@ bool status_uplink(uint8_t status, uint8_t value) {
 bool gpslost_uplink(void) {
   uint16_t minutes_lost;
 
+  if (!SEND_GPSLOST_UPLINKS)
+    return false;
+    
   minutes_lost = (last_fix_time - millis()) / 1000 / 60;
   pack_lat_lon(last_send_lat, last_send_lon);
   txBuffer[6] = battery_byte();

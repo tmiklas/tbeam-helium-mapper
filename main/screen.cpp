@@ -29,7 +29,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "SSD1306Wire.h"
 #include "configuration.h"
 #include "credentials.h"
-#include "fonts.h"
 #include "gps.h"
 #include "images.h"
 
@@ -181,7 +180,7 @@ void screen_setup(uint8_t addr) {
     return;
   display->init();
   display->flipScreenVertically();
-  display->setFont(Custom_ArialMT_Plain_10);
+  display->setFont(ArialMT_Plain_10);
 
   // Scroll buffer
   display->setLogBuffer(4, 30);

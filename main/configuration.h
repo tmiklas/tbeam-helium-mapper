@@ -27,8 +27,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // -----------------------------------------------------------------------------
 // Version
 // -----------------------------------------------------------------------------
-#define APP_NAME    "MaxP Mapper"
-#define APP_VERSION "1.7.3" // 2022-Feb-01
+#define APP_NAME "MaxP Mapper"
+#define APP_VERSION "1.7.4"  // 2022-Feb-05
 
 // -----------------------------------------------------------------------------
 // CONFIGURATION
@@ -39,52 +39,53 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Minimum Distance between Mapper reports.  This is your MAIN knob to turn for more/fewer uplink packets.
 // SMALLER distance: More packets, more dots on the map, more DC spent, more power consumed
-// (If you set this to a very small value, it will still be rate-limited by how often your Region allows back-to-back Uplink packets.)
-// LARGER distance: Fewer packets, might miss some hexes, conserves DC, battery might last longer
-// Note that a hex is about 340m across.  Ideally, you want at least two uplinks in each hex to map it.
-#define MIN_DIST                70.0       // Minimum distance in meters from the last sent location before we  send again.
+// (If you set this to a very small value, it will still be rate-limited by how often your Region allows back-to-back
+// Uplink packets.) LARGER distance: Fewer packets, might miss some hexes, conserves DC, battery might last longer Note
+// that a hex is about 340m across.  Ideally, you want at least two uplinks in each hex to map it.
+#define MIN_DIST 70.0  // Minimum distance in meters from the last sent location before we  send again.
 
 // If we are not moving at least MIN_DIST meters away from the last uplink, when should we send a redundant
 // Mapper Uplink from the same location?  This Heartbeat or ping isn't all that important for mapping, but might be
 // useful for time-at-location tracking or other monitoring.  You can safely set this value very high.
-#define STATIONARY_TX_INTERVAL  ( 5 * 60)  // Send one uplink at least once every N seconds
-#define NEVER_REST              0          // Change to 1 if you want to always send at THIS rate, with no slowing or sleeping.
+#define STATIONARY_TX_INTERVAL (5 * 60)  // Send one uplink at least once every N seconds
+#define NEVER_REST 0  // Change to 1 if you want to always send at THIS rate, with no slowing or sleeping.
 
 // After being stationary for a long while, we move to a slower heartbeat interval:
-#define REST_WAIT               (20 * 60)  // If we still haven't moved in this many seconds, start sending even slower..
-#define REST_TX_INTERVAL        (30 * 60)  // Slow resting ping frequency in seconds
+#define REST_WAIT           (20 * 60)  // If we still haven't moved in this many seconds, start sending even slower..
+#define REST_TX_INTERVAL    (30 * 60)  // Slow resting ping frequency in seconds
 
 // This last stage is a low-power sleep to conserve battery when the Mapper has not moved for a long time.
-// This one is a difficult compromise:  Waking up to boot & power on the GPS is not a fast operation, 
-// so we want to avoid it as much as possible. There is no other motion sensor, so if we make it too long, 
+// This one is a difficult compromise:  Waking up to boot & power on the GPS is not a fast operation,
+// so we want to avoid it as much as possible. There is no other motion sensor, so if we make it too long,
 // we miss the first minutes of each motion while sleeping.
 // Note that USB Power will prevent this low-power sleep, and also wake us up from it.
 // A button press will also wake from sleep, but takes some time to initialise and re-aquire
-#define SLEEP_WAIT              ( 2 * 60 * 60) // If we STILL haven't moved in this long, turn off the GPS to save power
+#define SLEEP_WAIT          (2 * 60 * 60)  // If we STILL haven't moved in this long, turn off the GPS to save power
 // For a vehicle application where USB Power appears BEFORE motion, this can be set very high without missing anything:
-#define SLEEP_TX_INTERVAL       ( 1 * 60 * 60) // Wake up and check position every now and then to see if movement happened
+#define SLEEP_TX_INTERVAL   (1 * 60 * 60)  // Wake up and check position every now and then to see if movement happened
 
 // When searching for a GPS Fix, we may never find one due to obstruction, noise, or reduced availability.
 // Note that GPS Lost also counts as no-movement, so the Sleep tier above still applies
-#define GPS_LOST_WAIT           ( 5 * 60) // How long to wait for a GPS fix before declaring failure
-#define GPS_LOST_PING           (15 * 60) // Without GPS reception, how often to send a non-mapper status packet
+#define GPS_LOST_WAIT (5 * 60)   // How long to wait for a GPS fix before declaring failure
+#define GPS_LOST_PING (15 * 60)  // Without GPS reception, how often to send a non-mapper status packet
 
-#define SCREEN_IDLE_OFF_S       ( 2 * 60) // If there are no Uplinks or button presses sent for this long, turn the screen off.
-#define MENU_TIMEOUT_S          5         // Seconds to wait before exiting the menu.
+#define SCREEN_IDLE_OFF_S  (2 * 60) // If there are no Uplinks or button presses sent for this long, turn the screen off.
+#define MENU_TIMEOUT_S 5  // Seconds to wait before exiting the menu.
 
-// Below this voltage, power off until USB power allows charging.  The PMIC also has a (safety) turn-off much lower than this.
-// We use a conservative 3.3v here since the battery will last longer.
-#define BATTERY_LOW_VOLTAGE     3.3  
+// Below this voltage, power off until USB power allows charging.  The PMIC also has a (safety) turn-off much lower than
+// this. We use a conservative 3.3v here since the battery will last longer.
+#define BATTERY_LOW_VOLTAGE 3.3
 
 // Confirmed packets (ACK request) conflict with the function of a Mapper and should not normally be enabled.
 // In areas of reduced coverage, the Mapper will try to send each packet six or more times with different SF/DR.
 // This causes irregular results and the location updates are infrequent, unpredictable, and out of date.
-#define LORAWAN_CONFIRMED_EVERY 0  // Request Confirmation message every N Uplinks (0 means never, 1 means always, 2 every-other-one..)
+// (0 means never, 1 means always, 2 every-other-one..)
+#define LORAWAN_CONFIRMED_EVERY 0  // Request Confirmation message every N Uplinks 
 
 // Spreading Factor (Data Rate) determines how long each 11-byte Mapper Uplink is on-air, and how observable it is.
-// SF10 is about two seconds of transmission per packet, and the highest range, while SF7 is a good compromise 
+// SF10 is about two seconds of transmission per packet, and the highest range, while SF7 is a good compromise
 // for moving vehicles and reasonable mapping observations.
-#define LORAWAN_SF              DR_SF7           // Spreading factor (recommended DR_SF7 for network map purposes)
+#define LORAWAN_SF DR_SF7  // Spreading factor (recommended DR_SF7 for network map purposes)
 
 // Deadzone defines a circular area where no map packets will originate.
 // This is useful to avoid sending many redundant packets in your own driveway or office, or just for local privacy.
@@ -101,6 +102,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define DEADZONE_RADIUS_M 500  // meters
 #endif
 
+// There are some extra non-Mapper Uplink messages we can send, but there's no good way to avoid sending these
+// to all Integrations from the Decoder.  This causes (normal) Error messages on the Console because Mapper will throw
+// them out for having no coordinates.  It doesn't hurt anything, as they are correctly filtered by the Decoder, but if
+// you don't like seeing Integration Errors, then set these to 0.  Set these to 1 for extra non-mapper messages.
+#ifndef SEND_GPSLOST_UPLINKS
+#define SEND_GPSLOST_UPLINKS 0  // GPS Lost messages
+#endif
+#ifndef SEND_STATUS_UPLINKS
+#define SEND_STATUS_UPLINKS  0  // USB Connnect/disconnect messages
+#endif
 
 // -----------------------------------------------------------------------------
 // Less common Configuration iteams
@@ -108,7 +119,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Select which T-Beam board is being used. Only uncomment one.
 //#define T_BEAM_V07  // AKA Rev0 (first board released) UNTESTED!  Expect bugs.
-#define T_BEAM_V10    // AKA Rev1 (second board released), this is the common "v1.1"
+#define T_BEAM_V10  // AKA Rev1 (second board released), this is the common "v1.1"
 
 #define LOGO_DELAY 2000  // Time to show logo on first boot (ms)
 
@@ -117,8 +128,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 // Never enable ADR on Mappers because they are moving, so we don't want to adjust
 // anything based on packet reception.
-#define LORAWAN_ADR 0       // Do not enable ADR
-
+#define LORAWAN_ADR 0  // Do not enable ADR
 
 // If you are having difficulty sending messages to TTN after the first successful send,
 // uncomment the next option and experiment with values (~ 1 - 5)
@@ -184,7 +194,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #elif defined(T_BEAM_V10)  // Or T-Beam v1.1
 #define GPS_RX_PIN 34
 #define GPS_TX_PIN 12
-#define GPS_INT 37 // 30ns accurate timepulse from Neo-6M pin 3
+#define GPS_INT 37  // 30ns accurate timepulse from Neo-6M pin 3
 #endif
 
 // -----------------------------------------------------------------------------

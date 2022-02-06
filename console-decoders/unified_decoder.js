@@ -1,6 +1,4 @@
-// Decoder for MaxPlastix mappers, compatible with:
-// https://github.com/hkicko/CubeCell-GPS-Helium-Mapper
-// but without the Tracker payload.
+// Decoder for MaxPlastix mappers
 //
 // 11 Byte payload: 
 // 3 Lat, 3 Long, 2 Altitude (m), 1 Speed (km/hr), 1 Battery, 1 Sats.
@@ -10,6 +8,7 @@
 function Decoder(bytes, port) {
   var decoded = {};
 
+  // All formats carry a lat & lon reading:
   var latitude = ((bytes[0] << 16) >>> 0) + ((bytes[1] << 8) >>> 0) + bytes[2];
   latitude = (latitude / 16777215.0 * 180) - 90;
 
@@ -23,8 +22,10 @@ function Decoder(bytes, port) {
 
       var altValue = ((bytes[6] << 8) >>> 0) + bytes[7];
       var sign = bytes[6] & (1 << 7);
-      if (sign) decoded.altitude = 0xFFFF0000 | altValue;
-      else decoded.altitude = altValue;
+      if (sign)
+        decoded.altitude = 0xFFFF0000 | altValue;
+      else
+        decoded.altitude = altValue;
 
       decoded.speed = parseFloat((((bytes[8])) / 1.609).toFixed(2));
       decoded.battery = parseFloat((bytes[9] / 100 + 2).toFixed(2));
@@ -32,6 +33,8 @@ function Decoder(bytes, port) {
       decoded.accuracy = 2.5; // Bogus Accuracy required by Cargo/Mapper integration
       break;
     case 5: // System status
+      decoded.last_latitude = latitude;
+      decoded.last_longitude = longitude;
       decoded.battery = parseFloat((bytes[6] / 100 + 2).toFixed(2));
       decoded.status = bytes[7];
       decoded.value = bytes[8];
