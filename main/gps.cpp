@@ -8,7 +8,6 @@
 #include "SparkFun_Ublox_Arduino_Library_Series_6_7.h"
 #include "configuration.h"
 
-
 HardwareSerial gpsSerial(GPS_SERIAL_NUM);
 
 SFE_UBLOX_GPS myGNSS;
@@ -23,7 +22,7 @@ void gps_end(void) {
   gpsSerial.end();
 }
 
-void gps_setup(void) {
+void gps_setup(boolean first_init) {
   static boolean serial_ready = false;
   if (serial_ready) {
     gpsSerial.updateBaudRate(GPS_BAUDRATE);
@@ -36,14 +35,13 @@ void gps_setup(void) {
   while (gpsSerial.read() != -1)
     ;
 
-  if (0)
-    myGNSS.enableDebugging();
+  // myGNSS.enableDebugging();
 
-  bool changed_speed = false;
+  bool changed_speed = false;  // Assume we're already at the right speed
 
   // Check all the possible GPS bitrates to get in sync
   do {
-    gpsSerial.updateBaudRate(GPS_BAUDRATE);
+    gpsSerial.updateBaudRate(GPS_BAUDRATE);  // Try the desired speed first
     if (myGNSS.begin(gpsSerial)) {
       Serial.println("GPS connected.");
       break;
@@ -87,9 +85,11 @@ void gps_setup(void) {
     Serial.println("Could not connect to GPS. Retrying all speeds...");
   } while (1);
 
-  myGNSS.setUART1Output(COM_TYPE_NMEA);  // We do want NMEA
+  // Configure NMEA messages only once, save to flash
+  if (first_init) {
+    myGNSS.setUART1Output(COM_TYPE_NMEA);  // We do want NMEA
 
-  myGNSS.setNavigationFrequency(2);  // Produce X solutions per second
+    myGNSS.setNavigationFrequency(2);  // Produce X solutions per second
 
 #if 0
   // On the Neo6M, these are all off by default anyway:
@@ -109,14 +109,17 @@ void gps_setup(void) {
   myGNSS.disableNMEAMessage(UBX_NMEA_ZDA, COM_PORT_UART1);
 #endif
 
-  myGNSS.disableNMEAMessage(UBX_NMEA_GSV, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_GLL, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
-  myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1);  // Don't need SV list (on by default)
-  myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);   // For Speed
-  myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);   // For Time & Location & SV count
+    // Disable these messages that are on after factory reset
+    myGNSS.disableNMEAMessage(UBX_NMEA_GSV, COM_PORT_UART1);
+    myGNSS.disableNMEAMessage(UBX_NMEA_GLL, COM_PORT_UART1);
+    myGNSS.disableNMEAMessage(UBX_NMEA_VTG, COM_PORT_UART1);
+    myGNSS.disableNMEAMessage(UBX_NMEA_GSA, COM_PORT_UART1);
+    
+    myGNSS.enableNMEAMessage(UBX_NMEA_RMC, COM_PORT_UART1);   // For Speed
+    myGNSS.enableNMEAMessage(UBX_NMEA_GGA, COM_PORT_UART1);   // For Time & Location & SV count
+  }
 
-  if (changed_speed)
+  if (first_init || changed_speed)
     myGNSS.saveConfiguration();  // Save the current settings to flash and BBR
 }
 
@@ -125,7 +128,7 @@ void gps_full_reset(void) {
   myGNSS.factoryReset();
   delay(5000);
   Serial.println("Reconfiguring GPS...");
-  gps_setup();
+  gps_setup(true);
   delay(1000);
   // Drain any waiting garbage
   while (gpsSerial.read() != -1)

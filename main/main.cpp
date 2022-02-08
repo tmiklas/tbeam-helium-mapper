@@ -769,7 +769,7 @@ void setup() {
 
   // Might have to add a longer delay here for GPS boot-up.  Takes longer to sync if we talk to it too early.
   delay(100);
-  gps_setup();  // Init GPS baudrate and messages
+  gps_setup(true);  // Init GPS baudrate and messages
 
   // This is bad.. we can't find the AXP192 PMIC, so no menu key detect:
   if (!axp192_found)
@@ -829,7 +829,7 @@ void low_power_sleep(uint32_t seconds) {
   }
 
   delay(100);   // GPS doesn't respond right away.. not ready for baud-rate test.
-  gps_setup();  // Resync with GPS
+  gps_setup(false);  // Resync with GPS
 }
 
 // Power OFF -- does not return
@@ -1242,7 +1242,7 @@ void loop() {
     else if (axp.isPEKLongtPressIRQ())  // want to turn OFF
       menu_power_off();
     else {
-      snprintf(buffer, sizeof(buffer), "\n* %s ", irq_name);
+      snprintf(buffer, sizeof(buffer), "\n* %s  ", irq_name);
       screen_print(buffer);
     }
     axp.clearIRQ();
