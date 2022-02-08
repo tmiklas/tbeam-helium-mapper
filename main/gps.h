@@ -11,3 +11,4 @@ void gps_setup(void);
 void gps_time(char *buffer, uint8_t size);
 void gps_passthrough(void);
 void gps_end(void);
+void gps_full_reset(void);

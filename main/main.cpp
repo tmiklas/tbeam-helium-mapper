@@ -78,7 +78,14 @@ unsigned int rest_tx_interval_s;        // prefs REST_TX_INTERVAL
 
 unsigned int tx_interval_s;  // Currently-active time interval
 
-enum activity_state { ACTIVITY_MOVING, ACTIVITY_REST, ACTIVITY_SLEEP, ACTIVITY_GPS_LOST, ACTIVITY_WOKE, ACTIVITY_INVALID };
+enum activity_state {
+  ACTIVITY_MOVING,
+  ACTIVITY_REST,
+  ACTIVITY_SLEEP,
+  ACTIVITY_GPS_LOST,
+  ACTIVITY_WOKE,
+  ACTIVITY_INVALID
+};
 enum activity_state active_state = ACTIVITY_INVALID;
 boolean never_rest = NEVER_REST;
 
@@ -101,7 +108,7 @@ bool pmu_irq = false;  // true when PMU IRQ pending
 
 bool oled_found = false;
 bool axp192_found = false;
-uint8_t oled_addr = 0; // i2c address of OLED controller
+uint8_t oled_addr = 0;  // i2c address of OLED controller
 
 bool packetQueued;
 bool isJoined = false;
@@ -220,7 +227,7 @@ bool gpslost_uplink(void) {
 
   if (!SEND_GPSLOST_UPLINKS)
     return false;
-    
+
   minutes_lost = (last_fix_time - millis()) / 1000 / 60;
   pack_lat_lon(last_send_lat, last_send_lon);
   txBuffer[6] = battery_byte();
@@ -777,7 +784,7 @@ void low_power_sleep(uint32_t seconds) {
 
   Serial.printf("Sleep %d..\n", seconds);
   Serial.flush();
-  
+
   screen_off();
 
   digitalWrite(RED_LED, HIGH);  // LED Off
@@ -806,7 +813,7 @@ void low_power_sleep(uint32_t seconds) {
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
     // Try not to puke, but we pretend we moved if they hit a key, to exit SLEEP and restart timers
     last_moved_ms = screen_last_active_ms = millis();
-    was_screen_on = true; // Lies
+    was_screen_on = true;  // Lies
     Serial.println("(GPIO)");
   }
   Serial.println("..woke");
@@ -983,7 +990,7 @@ const char *find_irq_name(void) {
   else if (axp.isVbusPlugInIRQ())
     irq_name = "USB Connected";  // "VbusPlugIn";
   else if (axp.isVbusRemoveIRQ())
-    irq_name = "USB Removed";    // "VbusRemove";
+    irq_name = "USB Removed";  // "VbusRemove";
   else if (axp.isVbusLowVHOLDIRQ())
     irq_name = "VbusLowVHOLD";
   else if (axp.isBattPlugInIRQ())
@@ -1144,6 +1151,10 @@ void menu_stay_on(void) {
   screen_stay_on = !screen_stay_on;
 }
 
+void menu_gps_reset(void) {
+  gps_full_reset();
+}
+
 dr_t sf_list[] = {DR_SF7, DR_SF8, DR_SF9, DR_SF10};
 #define SF_ENTRIES (sizeof(sf_list) / sizeof(sf_list[0]))
 uint8_t sf_index = 0;
@@ -1162,9 +1173,9 @@ void menu_change_sf(void) {
 struct menu_entry menu[] = {
     {"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
     {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
-    {"Change SF", menu_change_sf},         {"Full Reset", menu_flush_prefs},  {"USB GPS", menu_gps_passthrough},
+    {"Change SF", menu_change_sf},         {"Helium ReJoin", menu_flush_prefs},  {"USB GPS", menu_gps_passthrough},
     {"Deadzone Here", menu_deadzone_here}, {"No Deadzone", menu_no_deadzone}, {"Stay On", menu_stay_on},
-    {"Experiment", menu_experiment}};
+    {"GPS Reset", menu_gps_reset},         {"Experiment", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
 
 const char *menu_prev;
@@ -1204,10 +1215,10 @@ void loop() {
   uint32_t now = millis();
 
   gps_loop(0 /* active_state == ACTIVITY_WOKE */);  // Update GPS
-  now_fix_count = tGPS.sentencesWithFix();  // Did we get a new fix? 
+  now_fix_count = tGPS.sentencesWithFix();          // Did we get a new fix?
   if (now_fix_count != last_fix_count) {
     last_fix_count = now_fix_count;
-    last_fix_time = now; // Note the time of most recent fix
+    last_fix_time = now;  // Note the time of most recent fix
   }
 
   ttn_loop();
