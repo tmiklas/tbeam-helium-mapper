@@ -36,8 +36,19 @@ function Decoder(bytes, port) {
       decoded.last_latitude = latitude;
       decoded.last_longitude = longitude;
       decoded.battery = parseFloat((bytes[6] / 100 + 2).toFixed(2));
-      decoded.status = bytes[7];
       decoded.value = bytes[8];
+      decoded.status = bytes[7];
+      switch (bytes[7]) {
+        case 1:
+          decoded.status = "BOOT";
+          break;
+        case 2:
+          decoded.status = "USB ON";
+          break
+        case 3:
+          decoded.status = "USB OFF";
+          break;
+      }
       break;
     case 6: // Lost GPS
       decoded.last_latitude = latitude;

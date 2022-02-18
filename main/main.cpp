@@ -639,10 +639,12 @@ void axp192Init() {
 
     // Configure REG 36H: PEK press key parameter set.  Index values for
     // argument!
-    axp.setStartupTime(2);      // "Power on time": 512mS
-    axp.setlongPressTime(2);    // "Long time key press time": 2S
-    axp.setShutdownTime(2);     // "Power off time" = 8S
-    axp.setTimeOutShutdown(1);  // "When key press time is longer than power off time, auto power off"
+    axp.setStartupTime(2);       // "Power on time": 512mS
+    axp.setlongPressTime(2);     // "Long time key press time": 2S
+    axp.setShutdownTime(2);      // "Power off time" = 8S
+    axp.setTimeOutShutdown(1);   // "When key press time is longer than power off time, auto power off"
+    axp.setVWarningLevel1(2950); // These warning IRQs do not clear until charged, and inhibit other IRQs!
+    axp.setVWarningLevel2(2900); // We effectively disable them by setting them lower than we'd run
 
     // Serial.printf("AC IN: %fv\n", axp.getAcinVoltage());
     // Serial.printf("Vbus: %fv\n", axp.getVbusVoltage());
@@ -681,7 +683,14 @@ void axp192Init() {
 
     // @Kenny_PDY discovered that low-battery voltage inhibits detecting the menu button.
     // Disable these two IRQs until we figure out why it blocks the PEK button IRQs.
-    axp.enableIRQ(APX202_APS_LOW_VOL_LEVEL1_IRQ | AXP202_APS_LOW_VOL_LEVEL2_IRQ, 0);
+    // Low battery also seems to inhibit the USB present/lost signal we use to wake up.
+    axp.enableIRQ(APX202_APS_LOW_VOL_LEVEL1_IRQ, 0);
+    axp.enableIRQ(AXP202_APS_LOW_VOL_LEVEL2_IRQ, 0);
+    
+    // The Charging Current available is less than requested for battery charging.
+    // Another Persistent IRQ.  Clear it after showing it once?
+    // TODO: Show it every X minutes?  Adjust charge current request?
+    axp.enableIRQ(AXP202_CHARGE_LOW_CUR_IRQ, 0);
 
     axp.clearIRQ();
   } else {
@@ -709,8 +718,8 @@ void setup() {
   wakeup();
 
   // Make sure WiFi and BT are off
-  WiFi.disconnect(true);
-  WiFi.mode(WIFI_OFF);
+  //WiFi.disconnect(true);
+  WiFi.mode(WIFI_MODE_NULL);
   btStop();
 
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -1013,10 +1022,6 @@ const char *find_irq_name(void) {
     irq_name = "ChipOvertemperature";
   else if (axp.isChargingCurrentLessIRQ()) {
     irq_name = "ChargingCurrentLess";
-    // The Charging Current (770mA max feed) is less than requested
-    // Persistent IRQ.  Clear it after showing it once.
-    // TODO: Show it every X minutes?  Adjust charge current request?
-    axp.enableIRQ(AXP202_CHARGE_LOW_CUR_IRQ, 0);
   } else if (axp.isDC2VoltageLessIRQ())
     irq_name = "DC2VoltageLess";
   else if (axp.isDC3VoltageLessIRQ())

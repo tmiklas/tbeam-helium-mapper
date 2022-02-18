@@ -3,10 +3,10 @@
 by [Max-Plastix](https://github.com/Max-Plastix/tbeam-helium-mapper/)
 
 ### TL;DR
-Read through the comments in the three source files listed below.  Edit to taste, compile, and Upload to your TTGO T-Beam device.  Drive around and map the Helium network!
+This code loads onto Lilygo TTGO T-Beam board to make a Helium Network Mapper.  To build one, download this build, configure three files, and upload it to your device.  Go travel around to contribute to the Helium Network Map.
 
 ## Purpose
-The goal of this version is to have a **TTGO T-Beam** Mapper that's ideally suited to walking or driving, taking cues from the USB Power source and movement for activity level.  
+The goal of this software is to have a **TTGO T-Beam** Mapper that's ideally suited to walking or driving, taking cues from the USB Power source and movement for activity level.  
 
 This device uploads GPS coordinates from the TTGO T-Beam to the Helium network, be used for tracking and determining signal coverage of LoRaWAN gateways and hotspots. 
 With this software and a T-Beam device, one can contribute to the [Helium Network](https://www.helium.com) Mapper or Cargo projects. 
@@ -166,7 +166,7 @@ The top status line alternates between two displays every few seconds:
 - `#ABC` is the last three hex digits of your DevEUI, so you can match it to the correct device in Console.  Handy if you have several Mappers that look the same.
 - `4.10v` is the battery voltage
 - `48mA` is the charge (or discharge) current to the battery.  The TTGO charges the battery cell at around 300mA from USB, when possible.
-- Satellite Count is displayed on the right at all times.
+- Satellite HDOP & Count is displayed on the right at all times.  (Lower HDOP hints at better GSP accuracy.)
 - The GPS Time of Day (UTC) alternates on the display line every 2 seconds.
 - A `*** NO GPS ***` message will show when no GPS Fix is available.
 
@@ -199,6 +199,10 @@ This turns the Base64 Payload into values for Lat, Long, Altitude, Speed, Batter
 
 The [Decoder Function](https://github.com/Max-Plastix/tbeam-helium-mapper/blob/main/console-decoders/unified_decoder.js) can be pasted directly into the Console custom function.
 (Note that HDOP is not sent in this data.)
+
+## Grafana integration for custom maps
+
+If you want to maintain your own device map, there is an excellent [Grafana guide](https://friendsoflittleyus.nl/grafana-helium-gps-tracker-on-raspberry-pi/) here and [template scripts](https://github.com/takeabyte/helium_mapper_grafana) by @takeabyte available.
 
 # Downlink
 This builds adds the option to reconfigure the Mapper remotely via Helium Downlink (network to device).  You can change the maximum Time Interval, Distance, and Battery Cut-off voltage remotely.

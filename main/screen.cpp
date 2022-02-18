@@ -31,6 +31,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "credentials.h"
 #include "gps.h"
 #include "images.h"
+#include "font.h"
 
 #define SCREEN_HEADER_HEIGHT 24
 
@@ -180,7 +181,7 @@ void screen_setup(uint8_t addr) {
     return;
   display->init();
   display->flipScreenVertically();
-  display->setFont(ArialMT_Plain_10);
+  display->setFont(Custom_Font);
 
   // Scroll buffer
   display->setLogBuffer(4, 30);
