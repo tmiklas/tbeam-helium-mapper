@@ -33,7 +33,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "images.h"
 #include "font.h"
 
-#define SCREEN_HEADER_HEIGHT 24
+#define SCREEN_HEADER_HEIGHT 23
 
 OLEDDisplay *display;
 uint8_t _screen_line = SCREEN_HEADER_HEIGHT - 1;
