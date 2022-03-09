@@ -105,7 +105,8 @@ void forceTxSingleChannelDr() {
   ttn_sf(ttn_tx_sf);
 }
 
-// DevEUI generator using devices's MAC address - from https://github.com/cyberman54/ESP32-Paxcounter/blob/master/src/lorawan.cpp
+// DevEUI generator using devices's MAC address - from
+// https://github.com/cyberman54/ESP32-Paxcounter/blob/master/src/lorawan.cpp
 void gen_lora_deveui(uint8_t* pdeveui) {
   uint8_t *p = pdeveui, dmac[6];
   int i = 0;
@@ -275,7 +276,7 @@ bool ttn_setup() {
   return (1 == os_init_ex((const void*)&lmic_pins));
 }
 
-void ttn_join() {
+void ttn_join(void) {
   // Reset the MAC state. Session and pending data transfers will be discarded.
   LMIC_reset();
 
@@ -382,14 +383,16 @@ void ttn_join() {
   uint32_t netId = p.getUInt("netId", UINT32_MAX);
   uint32_t devAddr = p.getUInt("devAddr", UINT32_MAX);
   uint8_t nwkKey[16], artKey[16];
-  bool keysgood = p.getBytes("nwkKey", nwkKey, sizeof(nwkKey)) == sizeof(nwkKey) && p.getBytes("artKey", artKey, sizeof(artKey)) == sizeof(artKey);
+  bool keysgood = devAddr != UINT32_MAX && netId != UINT32_MAX &&
+                  p.getBytes("nwkKey", nwkKey, sizeof(nwkKey)) == sizeof(nwkKey) &&
+                  p.getBytes("artKey", artKey, sizeof(artKey)) == sizeof(artKey);
   p.end();  // close our prefs
 
   if (!keysgood) {
     // We have not yet joined a network, start a full join attempt
     // Make LMiC initialize the default channels, choose a channel, and
     // schedule the OTAA join
-    Serial.println("No session saved, joining from scratch");
+    Serial.println("Joining from scratch");
     screen_print("Joining...\n");
     LMIC_startJoining();
   } else {
@@ -410,7 +413,7 @@ void ttn_get_sf_name(char* b, size_t len) {
   u1_t sf, bw;
   sf = getSf(txrps) + 6;  // 1 == SF7
   bw = getBw(txrps);
-  
+
   /*
   snprintf(b, len, "%3d.%02d SF%d BW%d",
            LMIC.freq / 1000000,
@@ -454,9 +457,10 @@ void ttn_write_prefs() {
 static void ttn_set_cnt() {
   LMIC_setSeqnoUp(count);
 
-  // We occasionally mirror our count to flash, to ensure that if we lose power we will at least start with a count that is almost correct
-  // (otherwise the TNN network will discard packets until count once again reaches the value they've seen).  We limit these writes to a max rate
-  // of one write every 5 minutes.  Which should let the FLASH last for 300 years (given the ESP32 NVS algoritm)
+  // We occasionally mirror our count to flash, to ensure that if we lose power we will at least start with a count that
+  // is almost correct (otherwise the TNN network will discard packets until count once again reaches the value they've
+  // seen).  We limit these writes to a max rate of one write every 5 minutes.  Which should let the FLASH last for 300
+  // years (given the ESP32 NVS algoritm)
   static uint32_t lastWriteMsec = UINT32_MAX;  // Ensure we write at least once
   uint32_t now = millis();
   if (now < lastWriteMsec || (now - lastWriteMsec) > 5 * 60 * 1000L) {  // write if we roll over (50 days) or 5 mins

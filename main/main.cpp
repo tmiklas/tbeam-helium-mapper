@@ -192,6 +192,10 @@ void build_mapper_packet() {
   txBuffer[10] = sats & 0xFF;
 }
 
+// Helium requires a FCount reset sometime before hitting 0xFFFF
+// 50,000 makes it obvious it was intentional
+#define MAX_FCOUNT 50000
+
 boolean send_uplink(uint8_t *txBuffer, uint8_t length, uint8_t fport, boolean confirmed) {
   if (confirmed) {
     Serial.println("ACK requested");
@@ -206,6 +210,21 @@ boolean send_uplink(uint8_t *txBuffer, uint8_t length, uint8_t fport, boolean co
     Serial.println("Surprise send failure!");
     return false;
   }
+
+  // Helium requires a re-join / reset of count to avoid 16bit count rollover
+  // Hopefully a device reboot every 50k uplinks is no problem.
+  if (ttn_get_count() > MAX_FCOUNT) {
+    Serial.println("FCount Rollover!");
+
+    // I don't understand why this doesn't show at all
+    screen_print("\n\nRollover Reset!\n");
+    screen_update();
+    delay(1000);  // Give some time to read the screen
+
+    ttn_erase_prefs();
+    ESP.restart();
+  }
+
   return true;
 }
 
@@ -639,12 +658,12 @@ void axp192Init() {
 
     // Configure REG 36H: PEK press key parameter set.  Index values for
     // argument!
-    axp.setStartupTime(2);       // "Power on time": 512mS
-    axp.setlongPressTime(2);     // "Long time key press time": 2S
-    axp.setShutdownTime(2);      // "Power off time" = 8S
-    axp.setTimeOutShutdown(1);   // "When key press time is longer than power off time, auto power off"
-    axp.setVWarningLevel1(2950); // These warning IRQs do not clear until charged, and inhibit other IRQs!
-    axp.setVWarningLevel2(2900); // We effectively disable them by setting them lower than we'd run
+    axp.setStartupTime(2);        // "Power on time": 512mS
+    axp.setlongPressTime(2);      // "Long time key press time": 2S
+    axp.setShutdownTime(2);       // "Power off time" = 8S
+    axp.setTimeOutShutdown(1);    // "When key press time is longer than power off time, auto power off"
+    axp.setVWarningLevel1(2950);  // These warning IRQs do not clear until charged, and inhibit other IRQs!
+    axp.setVWarningLevel2(2900);  // We effectively disable them by setting them lower than we'd run
 
     // Serial.printf("AC IN: %fv\n", axp.getAcinVoltage());
     // Serial.printf("Vbus: %fv\n", axp.getVbusVoltage());
@@ -686,7 +705,7 @@ void axp192Init() {
     // Low battery also seems to inhibit the USB present/lost signal we use to wake up.
     axp.enableIRQ(APX202_APS_LOW_VOL_LEVEL1_IRQ, 0);
     axp.enableIRQ(AXP202_APS_LOW_VOL_LEVEL2_IRQ, 0);
-    
+
     // The Charging Current available is less than requested for battery charging.
     // Another Persistent IRQ.  Clear it after showing it once?
     // TODO: Show it every X minutes?  Adjust charge current request?
@@ -718,7 +737,7 @@ void setup() {
   wakeup();
 
   // Make sure WiFi and BT are off
-  //WiFi.disconnect(true);
+  // WiFi.disconnect(true);
   WiFi.mode(WIFI_MODE_NULL);
   btStop();
 
@@ -837,7 +856,7 @@ void low_power_sleep(uint32_t seconds) {
     //  screen_setup();
   }
 
-  delay(100);   // GPS doesn't respond right away.. not ready for baud-rate test.
+  delay(100);        // GPS doesn't respond right away.. not ready for baud-rate test.
   gps_setup(false);  // Resync with GPS
 }
 
@@ -1178,7 +1197,7 @@ void menu_change_sf(void) {
 struct menu_entry menu[] = {
     {"Send Now", menu_send_now},           {"Power Off", menu_power_off},     {"Distance +", menu_distance_plus},
     {"Distance -", menu_distance_minus},   {"Time +", menu_time_plus},        {"Time -", menu_time_minus},
-    {"Change SF", menu_change_sf},         {"Helium ReJoin", menu_flush_prefs},  {"USB GPS", menu_gps_passthrough},
+    {"Change SF", menu_change_sf},         {"Full Reset", menu_flush_prefs},  {"USB GPS", menu_gps_passthrough},
     {"Deadzone Here", menu_deadzone_here}, {"No Deadzone", menu_no_deadzone}, {"Stay On", menu_stay_on},
     {"GPS Reset", menu_gps_reset},         {"Experiment", menu_experiment}};
 #define MENU_ENTRIES (sizeof(menu) / sizeof(menu[0]))
