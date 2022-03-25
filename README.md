@@ -3,55 +3,91 @@
 by [Max-Plastix](https://github.com/Max-Plastix/tbeam-helium-mapper/)
 
 ### TL;DR
-This code loads onto Lilygo TTGO T-Beam board to make a Helium Network Mapper.  To build one, download this build, configure three files, and upload it to your device.  Go travel around to contribute to the Helium Network Map.
+This code loads onto LilyGo TTGO T-Beam v1.1 board to make a Helium Network Mapper.  To build one: download this build, configure some files, and upload it to your device.  Go travel the world to contribute to the Helium Network Coverage Maps!
 
 ## Purpose
 The goal of this software is to have a **TTGO T-Beam** Mapper that's ideally suited to walking or driving, taking cues from the USB Power source and movement for activity level.  
 
 This device uploads GPS coordinates from the TTGO T-Beam to the Helium network, be used for tracking and determining signal coverage of LoRaWAN gateways and hotspots. 
 With this software and a T-Beam device, one can contribute to the [Helium Network](https://www.helium.com) Mapper or Cargo projects. 
-Details for the Mapper project can be found [here](https://mappers.helium.com/) and details for Cargo can be found [here](https://cargo.helium.com/)
+Details for the Mapper project can be found [here](https://mappers.helium.com/) and details for Cargo can be found [here](https://cargo.helium.com/).  It also works with [Coverage Map](https://coveragemap.net/heatmap/), a new Heatmap view of Helium hotspots and coverage.
 
-The Mapper is intended to be highly active while the vehicle is in motion, and quieter when the vehicle is stationary.    By default, it is not miserly with Data Credits.  If you want to conserve Data Credits or battery power, tune the default configuration to send packets less frequently.
+The Mapper is intended to be highly active while the vehicle is in motion, and quieter when the vehicle is stationary.    By default, it is not miserly with Data Credits.  If you want to conserve Data Credits or battery power, tune the configuration to send packets less frequently.
 
 ### But do I get PAID for Mapping?!
 
-No, you do not.  I put this here because it seems to be the #1 FAQ.  You do not earn HNT or Data Credits by mapping.  Mapping costs you very little -- One Penny (USD $0.01) for every thousand mapping packets.  It helps the Helium network by providing a coverage map, and it helps you by providing clarity on your own local Helium environment.
+No, you do not.  I put this here because it seems to be the #1 FAQ.  You do not earn HNT or Data Credits by mapping.  Mapping costs you very little -- One Penny (USD $0.01) for every thousand mapping packets.  It helps the Helium network by providing a coverage map, and it helps you by providing clarity on your own local Helium environment.  It's all volunteer.
+
+### But do I get to flag and delist spoofing gamer Hotspots?!
+
+No, you do not.  It's the #2 FAQ.  The Mapper data and coverage maps are not involved in any POC challenges or used for gaming denylists.
 
 ## Supported Hardware
-I tested this software on (several) LilyGo TTGO T-Beam v1.1 devices, all on **US915**.  These are commonly avaialable as "Meshtastic" devices from AliExpress, Amazon, Banggood, eBay, etc, usually as a kit with an unsoldered OLED screen and SMA antenna.
+I tested this software on (many) LilyGo [TTGO T-Beam v1.1](http://www.lilygo.cn/prod_view.aspx?TypeId=50060&Id=1317&FId=t3:50060:3) devices, all on **US915**.  Others have enjoyed success on **EU688** and other worldwide bands, with the matching device.  These are commonly avaialable as "Meshtastic" devices from AliExpress, Amazon, Banggood, eBay, etc, usually as a kit with an unsoldered OLED screen and SMA antenna for around USD $30.00.
 
-If you have an older v0.7 board or different region, adjust the configuration to match.  If you have a unique variant (Neo 8M?) and find something not working, open an Issue and provide what information you can.
+If you have an older v0.7 board or different region, adjust the configuration to match.  If you have a unique variant and find something not working, open an Issue and provide what information you can.
+
+### Semtech LoRa Radio
+This build uses the [MCCI Catena LMIC Library](https://github.com/mcci-catena/arduino-lmic) for LoRaWAN on the Semtech SX1276 or SX1272 radio modules.
+
+Note that the T-Beam device with a [U.FL / I-PEX](https://www.hirose.com/product/series/U.FL#) LoRa antenna connector and uBlox NEO-8M GPS module comes with a Semtech SX1262 radio, which is NOT supported by the LMIC library.  
+**Do Not Buy** [this incorrect device](https://www.amazon.com/T-Beam-NEO-M8N-Wireless-Bluetooth-Display/dp/B07X2SNNGQ) for use on Helium!  It will not work.
+
+### OLED Display
+Most T-Beam units arrive with no OLED Display attached.  You **can** operate the mapper without an OLED display, if you would like.  Of course, the status and menu will be invisible, but there may be applications where a display is not required.
+
+The most common OLED Display used is a 0.96" screen with SSD1306 controller.   You may also use 1.3" displays, or displays with an SH1106 controller.  The software should auto-detect the correct controller protocol and display i2c address, but if you have an unusual display, file an issue to see if it can be supported.   When an OLED display is installed, you should see the detected type and address in the startup messages on UART.
+
+#### Soldering the 4-pin OLED connection
+
+Since the display is not pre-installed, the buyer must solder the 4-pin connection between the T-Beam and OLED.  Be very careful to match the pinout and position of the display!  Some OLED displays have VCC and GND reversed from the expected pinout, and require some creative wiring to adapt.
+
+If you incorrectly power the OLED, short connections, or damage the Pin 21/22 connections (i2c), it is very likely that both the OLED and the AXP Power management unit are unreachable, and the board may fail in unexpected ways.  It's a good idea to program the device and check the UART Monitor output before installing the OLED, for some confidence that the board works before soldering.
 
 # Mandatory Configuration
 Before Buliding and Uploading, you will probably want to inspect or change some items in these three files:
   - `platformio.ini`
   - `main/configuration.h`
   - `main/credentials.cpp`
+The comments and text below will guide you on what values to look out for.  
 
-The comments and text below will guide you on what values to look out for.  By default, this build is for the **US915** region.  Change `platformio.ini` for a different locale.
-You might have to adjust the COM Port in `platformio.ini` for Uploading and Monitoring if PlatformIO doesn't auto-detect your port correctly.
+### Geographic Region, and Frequency
+By default, this build is for the **US915** region.  Change the declaration in `platformio.ini` for a different locale, to select the correct operating rules and frequency for your country.
 
-You should choose your own AppKey value in `credentials.cpp`. Either take the random one suggested by the Console Device entry, or make up one of your own.  Read the notes in `credentials.cpp` for details.  By default, the DevEUI is generated automatically to be unique to each unit, but you may want to hardcode it in `credentials.cpp` instead.
+### PlatformIO Communication port
+You might have to adjust the COM Port in `platformio.ini` for Uploading and Monitoring if PlatformIO doesn't auto-detect your port correctly.  If you have a single T-Beam on a Windows computer, PlatformIO will usually auto-detect it correctly.  If you have a bunch of Serial USB devices, unusual USB topography, or weird device drivers, you might have to set this to a fixed port.  Note that Upload and Monitor are set separately, and have different auto-detection logic.
 
+On MacOS, it can be significantly more complicated to connect PlatformIO to your device.  Ask in the Discord for help.
+
+### Helium Device IDs
+Each LoRaWAN device on Helium is identified by the three OTAA values used in Joining the network: `DevEUI`, `AppEUI`, and `AppKey`.
+
+You should choose your own private `AppKey` value in `credentials.cpp`. Either take the random value generated by the new Console Device entry, or make up one of your own.  Read the notes in `credentials.cpp` for details.  The value in the build must match the value in Console, regardless of how you achieve that.
+
+By default, the `DevEUI` is generated automatically to be unique to each unit, but you may want to hardcode it in `credentials.cpp` instead.  There is an explanation there of why you might want to go either way.
+
+### Mapper uplink period and behavior
 Read through the comments in `configuration.h` to see if the default Mapper behavior suits your needs, especially in the area of default time/distance between Uplink packets.
 
-## How it Works
+# Operation: How it Works
 When your car is started, and USB Power appears, the Mapper will power on, acquire GPS, and continue mapping.
 It re-uses the last network Join state for faster connection and fewer packets.
 
-The Mapper is always looking to see if it's been a long time, or you moved some distance from the last report.  Whichever one happens first causes a transmission to be sent, plotting a point on the Helium map.
+The Mapper is always looking to see if it's been a long time, or you moved some distance from the last report.  Whichever one happens first causes a transmission to be sent, plotting a point on the Helium map.  **Time or Distance** are the two main factors in determining when to send Uplinks.
 
 When moving, the Mapper will send out a packet every time GPS indicates it has moved `MIN_DIST` meters.  This is the primary knob to turn for more/fewer packets.  A Helium hex cell is about 340meters across, so the default 68-meter packet distance will send quite a few redundant packets for each mapped cell.  DC is incredibly cheap, but adjust the distance if you want to send fewer packets.
 
-This is the normal operation of the Mapper in motion.. every `MIN_DIST` meters, one ping reporting position, while the battery charges from USB.  If the speed of motion is fast, it may even result in back-to-back packet sends (at greater distance) limited by the bandwidth of your chosen Spreading Factor (Data Rate) and country restrictions.  (In the United States US915, at SF10, this is about two seconds maximum speed.  In Thailand, it can be 37 seconds or more.)
+This is the normal operation of the Mapper in motion: every `MIN_DIST` meters, one Uplink is sent reporting position while the battery charges from USB.  If the speed of motion is fast, it may even result in back-to-back packet sends (at greater distance) limited by the bandwidth of your chosen Spreading Factor (Data Rate) and country restrictions.  (In the United States US915, at SF10, this is about two seconds maximum speed.  In Thailand, it can be 37 seconds or more.)
 
-When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat ping every `STATIONARY_TX_INTERVAL` seconds (default: 60).  This serves to keep it visible on the map and report battery voltage.  Too often?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.
+When the Mapper comes to a stop, staying within `MIN_DIST` meters, it sends a hearbeat ping every `STATIONARY_TX_INTERVAL` seconds (default: 60).  This serves to keep it visible on the map and report battery voltage.  (Too often for you?  Dial up the `STATIONARY_TX_INTERVAL` to a longer interval.)
 
-After being stationary a long time (parked) with a decreasing battery voltage, we change to a slower pace of updates.  This happens after `REST_WAIT` seconds (default: 30 minutes).  In the Rest state, the Mapper transmits every `REST_TX_INTERVAL` seconds (default: 5 minutes).
+After being stationary a long time (parked) with a decreasing battery voltage, we change to a slower pace of "not moving" updates.  This happens after `REST_WAIT` seconds (default: 30 minutes).  In the Rest state, the Mapper transmits every `REST_TX_INTERVAL` seconds (default: 5 minutes).
+
+After an even longer time (parked, not moving, no USB), the Mapper will power off the GPS to save significant power.  It will go into the lowest power state, waiting for USB power to come back.  Periodically, it will power up the GPS, get a location fix and see if it moved while sleeping.  It may have missed significant movement during sleep time, and wake to full Mapping.  Or it hasn't moved at all and goes back to sleep.
 
 Eventually, the ~100mA power drain of the mapper (with OLED screen & GPS) runs the battery down below `BATTERY_LOW_VOLTAGE` volts, and the Mapper will save state and completely power off.
-It will power on and resume only when USB power appears.
+
+Regardless of battery or sleep state, the Mapper will power on and resume when USB power appears.
 
 # Detailed Operation
 
@@ -136,12 +172,40 @@ There are some instances where this is problematic or not correct:
 * Very long time since last Uplink
 * Helium Network resets that invalidate Join keys.
 
-At any time, you can select `Flush Prefs` in the system menu to discard these keys, reset the device, and Join fresh.
+At any time, you can select `Full Reset` in the system menu to discard these keys, reset the device, and Join fresh.
 
-### GPS Connected
-You should also see a message reporting `GPS connected`.   The first time you run this software on hardware that came with Mestastic or other builds, it will automatically try all common baud rates to find the Neo GPS module.  Eventually it will connect, then configure the GPS for the needed NMEA Messages at 115,200 bps, then save the configuration to flash so that subsequent boot is faster.  In any case, you should always see `GPS connected` at startup.
+## GPS Connection and Issues
+The typical GPS operation is to power on, search the sky for satellites, and get a 3D fix in 10 seconds or less.  3 to 5 seconds is common.
+
+You should see a **Red LED** blinking once per second on the far right side of the T-Beam (away from the OLED).  If this Red LED is not blinking, the GPS does not have a fix and no Mapper packets will be sent.
+
+The T-Beam must have an Active GPS antenna connected to operate.  The included rectangular antenna is stuck with tape to the battery holder, but any Active GPS Antenna with 3v power and a U.FL connector could be used as well.  Many mappers use a larger 25x25mm GPS patch antenna for improved reception, but the included antenna is just fine.
+
+### First Power-On
+If your device is new, unused for a long time, or shipped from elsewhere in the world, it may take significantly longer for that first GPS fix.  I recommend installing a charged battery, powering on, and leaving the unit with a clear view of the sky (outdoors) for 15 min before attempting any diagnostics.  In most cases, this will allow it to get a 3D Fix, download the current GPS Almanac data, charge the battery cell, and prepare for optimum startups.
+
+#### GPS battery cell
+The Neo-6M has a dedicated GPS backup battery cell that recharges any time the Mapper is powered on.  This helps retain the GPS state for faster time to first fix.  If your device is new or unused for a long time, this battery is likely dead and will charge with some use.  There's nothing to do but use the Mapper, and you should see fast GPS connections in the future.
+
+#### GPS Bitrate and configuration
+On the Debug/Monitoring UART console, you should also see a message reporting `GPS connected`.   The first time you run this software on hardware that came with Mestastic or other builds, it will automatically try all common baud rates to find the Neo GPS module.  Eventually it will connect, then configure the GPS for the needed NMEA Messages at 115,200 bps, then save the configuration to flash so that subsequent boot is faster.  In any case, you should always see `GPS connected` at startup if you are watching the UART/Monitor serial data.
 
 This means the Mapper is receving NMEA messages at the expected bitrate, but it may not yet have a 3D position fix from the GPS.
+
+Note that you never need to load or run special "GPS Reset" scripts to change the GPS settings.  This build will find and configure the GPS from any known state, including Meshtastic builds.
+
+### GPS Debug
+First, it is uncommon for GPS modules to be defective on the T-Beam.  Try these steps to debug it, and reach out in the `#mappers` channel for help.
+
+If 15 minutes of clear sky view did not result in a GPS Fix (blinking Red LED), then something is not correct.  Ensure you have a good view of the sky, outdoors, with at least some horizon in view.  The **most common** cause of failure is trying to get a first fix indoors, or with a limited view of the sky.  "Near a window" doesn't count.  That first fix takes time and needs many good and constant signals to download the full data set.  Get it out in the open, and be patient.
+
+Check the antenna cable connection to the board.  The U.FL connector is fragile, and the routing of the wire through the hole in the PCB can cause tension, or disconnect in shipping.  Some boards have been found with a broken U.FL connector, so inspect the solder joints as well.
+
+Ensure the unit has good power, using a charged LiIon cell for power.  It needs to stay on for 15 minutes or more without interruption.
+
+If you see a blinking Red LED from the GPS, but the Mapper software does not have a fix, reporting `*** NO GPS ***`, then there is a software issue between the ESP32 and GPS.  You can debug this further by selecting `USB GPS` from the menu and inspecting the NMEA sentences from the GPS to the UART console.  You may also run Ublox tools this way, such as U-Center to study the GPS module behiavor.
+
+If `USB GPS` does not relay any NMEA sentences from the unit, then something is wrong in unusual ways.  Reset the board and ensure that "GPS Connected" is shown during boot.  It is not common for GPS modules to be defective, so keep trying different things and ask `#mappers` for ideas.
 
 ## LED Indicators
 
@@ -197,8 +261,7 @@ The Payload Port and byte content have been selected to match the format used by
 A custom Decoder Function translates the payload bytes into a set of JSON values required by the Integrations for both Mapper and Cargo.
 This turns the Base64 Payload into values for Lat, Long, Altitude, Speed, Battery, and Sats.
 
-The [Decoder Function](https://github.com/Max-Plastix/tbeam-helium-mapper/blob/main/console-decoders/unified_decoder.js) can be pasted directly into the Console custom function.
-(Note that HDOP is not sent in this data.)
+This [Decoder Function](https://github.com/Max-Plastix/tbeam-helium-mapper/blob/main/console-decoders/unified_decoder.js) can be pasted directly into the Console custom function.  Do not use Decoder functions from other builds or instructions!  The Uplink decoding is specific to the software that made the packet, so it has to match.  (Note that HDOP is not sent in this data.)
 
 ## Grafana integration for custom maps
 
@@ -281,10 +344,9 @@ NOTE: There are now 2 versions of the TTGO T-BEAM, the first version (Rev0) and 
 - step by step details for setting up a Mapper integration can be found [here](https://docs.helium.com/use-the-network/coverage-mapping/mappers-quickstart/#mappers-quickstart).
 - detail for setting up a Cargo integration can be found [here](https://docs.helium.com/use-the-network/console/integrations/cargo).
 
-The specific details for adding a Mapper or Cargo integration use a different edge node device than the one detailed here. When prompted to add a function decoder, be sure to use the following decoder. Note: This decoder can also be found within this project in the console-decoders directory.
+The specific details for adding a Mapper or Cargo integration use a different edge node device than the one detailed here. When prompted to add a function decoder, be sure to use the Decoder Function above.
 
-~~5. Open this project file ```main/main.ino``` with the Arduino IDE Verify/Compile the project. If the compile is successful upload the application to your TTGO T-Beam.~~
-Filenames with `.ino` are a holdover from Arduino IDE.  Do not use Arduino IDE to compile this build; use PlatformIO instead.
+Filenames with `.ino` are a holdover from Arduino IDE.  **Do not use Arduino IDE to compile this build; use PlatformIO instead.**
 
 6. Disconnect and turn on the device and once a GPS lock is acquired, the device should start sending data to the Helium network and Helium Mapper or Helium Cargo depending upon which you configured in step 6.
 
