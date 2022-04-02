@@ -69,6 +69,56 @@ By default, the `DevEUI` is generated automatically to be unique to each unit, b
 ### Mapper uplink period and behavior
 Read through the comments in `configuration.h` to see if the default Mapper behavior suits your needs, especially in the area of default time/distance between Uplink packets.
 
+# Building and Programming
+This code started off as an Arduino IDE project, with `.ino` filenames, but the complexity of managing installed libraries in Arduino IDE made it difficult to sustain.   Now, the code must be built with PlatformIO and Visual Studio Code.  These is an excellent free/open-source IDE for ESP32 platforms, and allows each project to pull in the required libraries to complete the build, as well as program it into the device.
+
+There are excellent guides to installing and using PlatformIO, but for this project, your goal is to open the project, edit the configuration files, and then select `Build` and `Upload` to program the T-Beam device.
+
+# Battery life and power consumption
+The T-Beam is not the lowest-power Mapper device, because it has a powerful dual-core ESP32 CPU, Power Management IC (PMIC or PMU), and other design decisions that lead to a pretty high operating current of 110mA or so.
+
+There is an excellent Lithium-Ion 18650 battery management and charger built-in, so you can install a battery cell, and operate it from USB power while it charges and maintains the battery.  The USB port can draw up to 1 Amp, with 750mA or so going to battery charging.
+
+## Battery Selection
+If you plan to run the Mapper primarily on battery with infrequent charging, you will want a battery with the highest mAh (milliamp-hour) rating, typically 3000 mAh or more.  Some battery cells like Sony's excellent VTC6, are optimized for very high current discharge (heaters, drones, scooters).  These are expensive, and may make other compromises in capacity.  You don't need high current at all, so look for a good balance of cost and capacity.
+
+If you expect to have USB power available most of the time, then the cheapest 18650 cells will do just fine -- don't feel bad about using an old or low-capacity one.
+
+### Battery Fitment
+The included battery holder in the TTGO T-Beam is **small** and **tight**.  Your battery cell must have **NO Protruding bump** or nipple on the Positive end.  Look for a flat or low-profile positive end.  (If you must, you may be able to crush the spring-terminals at the ends of the battery holder, but this should be done carefully to avoid damaging the attached PCB or cracking the holder.)
+
+Always insert the cell carefully and deliberately, noting the `+` and `-` orientation but also supporting the PCB to avoid bending the whole assembly with force.
+
+Some battery cells have a built-in Protection Circuit, advertised as "protected" or safe cells.  These batteries are longer in size, and won't easily fit in the battery holder.
+
+## Runtime and Battery Life
+While the T-Beam Mapper is typically USB powered from a vehicle, it can run for weeks from the built-in 18650 cell responding to occasional movement.
+
+The GPS receiver is the single largest power consumer on the Mapper, so settings that allow for more GPS-off time will save battery.
+
+## Runtime
+It depends on configuration, of course, but here's a ballpark figure:   Without any sleep, the fully-operating Mapper should track for about **24 hours of nonstop movement**. (3000mAh cell, 105mA operating current, reasonable battery margins and uplink rate)
+
+When mostly stationary, the mapper can wait for movement or events for about a **month**!  (3000mA cell, mostly 2.23mA sleep, some wake and activity.)
+
+## Operating power
+In the full-operating state, with the GPS tracking, Mapper uplinks, and OLED display on, the T-Beam draws about 100 to **120mA** from the 18650 cell.
+(Searching for GPS fix is the highest power, 120mA, and when it has a solid fix, closer to 110mA.)
+There is a little extra power consumed for a short while as it charges the GPS coin cell automatically.
+
+### OLED Screen OFF
+Turning off the OLED Display is done more to save the screen from pixel burn-in than to save power.  It draws just under 10mA when lit with text display, so the Mapper drops to about **101.6mA** when the screen is off.
+
+### LoRa power?
+Uplink transmissions use more power (200mA), but they are usually short and infrequent.  Back-to-back SF10 transmissions could start to weigh on battery life, of course.
+
+### Rest or Sleep
+With the GPS and OLED off, and the ESP32 waiting for USB power, button press, or movement checks, it is in the lowest-power operating state.
+This draws **2.23mA** from the battery.
+
+### Power Off
+Powered off, the circuit still draws **3.22 μA (micro-amps)**. Not significant, but not zero.  Remove the battery cell at about half to 80% charge for long-term storage longer than a month or two.
+
 # Operation: How it Works
 When your car is started, and USB Power appears, the Mapper will power on, acquire GPS, and continue mapping.
 It re-uses the last network Join state for faster connection and fewer packets.
