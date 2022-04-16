@@ -318,7 +318,7 @@ This [Decoder Function](https://github.com/Max-Plastix/tbeam-helium-mapper/blob/
 
 ## Grafana integration for custom maps
 
-If you want to maintain your own device map, there is an excellent [Grafana guide](https://friendsoflittleyus.nl/grafana-helium-gps-tracker-on-raspberry-pi/) here and additional information and [template scripts](https://github.com/takeabyte/helium_mapper_grafana) by @takeabyte available.
+If you want to maintain your own device map, there is an excellent [Grafana guide](https://friendsoflittleyus.nl/grafana-helium-gps-tracker-on-raspberry-pi/) here and additional information and [template scripts](https://github.com/takeabyte/helium_mapper_grafana) by @takeabyte (`@friends just call me bob`) available.
 
 # Downlink
 This builds adds the option to reconfigure the Mapper remotely via Helium Downlink (network to device).  You can change the maximum Time Interval, Distance, and Battery Cut-off voltage remotely.
