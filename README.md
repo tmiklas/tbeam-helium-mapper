@@ -40,9 +40,9 @@ The most common OLED Display used is a 0.96" screen with SSD1306 controller.   Y
 
 #### Soldering the 4-pin OLED connection
 
-Since the display is not pre-installed, the buyer must solder the 4-pin connection between the T-Beam and OLED.  Be very careful to match the pinout and position of the display!  Some OLED displays have VCC and GND reversed from the expected pinout, and require some creative wiring to adapt.
+Since the display is not pre-installed, the buyer must solder the 4-pin connection between the T-Beam and OLED.  Be very careful to match the pinout and position of the display!  Some OLED displays have VCC and GND reversed from the expected pinout, and require some creative wiring to adapt.  If your OLED came with the T-Beam, it's probably correct and ready-to-solder.
 
-If you incorrectly power the OLED, short connections, or damage the Pin 21/22 connections (i2c), it is very likely that both the OLED and the AXP Power management unit are unreachable, and the board may fail in unexpected ways.  It's a good idea to program the device and check the UART Monitor output before installing the OLED, for some confidence that the board works before soldering.
+If you incorrectly power the OLED, short connections, or damage the Pin 21/22 connections (i2c), it is very likely that both the OLED and the AXP Power management unit are unreachable, and the board may fail in unexpected ways.  It's a good idea to program the device and check the UART Monitor output before installing the OLED, for some confidence that the board works before soldering.  (Nobody actually does this, but it's a good idea.)
 
 # Mandatory Configuration
 Before Buliding and Uploading, you will probably want to inspect or change some items in these three files:
@@ -73,6 +73,9 @@ Read through the comments in `configuration.h` to see if the default Mapper beha
 This code started off as an Arduino IDE project, with `.ino` filenames, but the complexity of managing installed libraries in Arduino IDE made it difficult to sustain.   Now, the code must be built with PlatformIO and Visual Studio Code.  These is an excellent free/open-source IDE for ESP32 platforms, and allows each project to pull in the required libraries to complete the build, as well as program it into the device.
 
 There are excellent guides to installing and using PlatformIO, but for this project, your goal is to open the project, edit the configuration files, and then select `Build` and `Upload` to program the T-Beam device.
+
+## MacOS Guide
+Building and programming with PlatformIO on MacOS is mostly the same, but has some unique challenges.  `@Rob Cryft` wrote this excellent guide on ["Getting Started with Helium Mapping"](https://levelup.gitconnected.com/getting-started-with-helium-mapping-2833914c4d3) that walks through the whole process on Mac.
 
 # Battery life and power consumption
 The T-Beam is not the lowest-power Mapper device, because it has a powerful dual-core ESP32 CPU, Power Management IC (PMIC or PMU), and other design decisions that lead to a pretty high operating current of 110mA or so.
@@ -315,7 +318,7 @@ This [Decoder Function](https://github.com/Max-Plastix/tbeam-helium-mapper/blob/
 
 ## Grafana integration for custom maps
 
-If you want to maintain your own device map, there is an excellent [Grafana guide](https://friendsoflittleyus.nl/grafana-helium-gps-tracker-on-raspberry-pi/) here and [template scripts](https://github.com/takeabyte/helium_mapper_grafana) by @takeabyte available.
+If you want to maintain your own device map, there is an excellent [Grafana guide](https://friendsoflittleyus.nl/grafana-helium-gps-tracker-on-raspberry-pi/) here and additional information and [template scripts](https://github.com/takeabyte/helium_mapper_grafana) by @takeabyte available.
 
 # Downlink
 This builds adds the option to reconfigure the Mapper remotely via Helium Downlink (network to device).  You can change the maximum Time Interval, Distance, and Battery Cut-off voltage remotely.
