@@ -28,7 +28,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Version
 // -----------------------------------------------------------------------------
 #define APP_NAME "MaxP Mapper"
-#define APP_VERSION "1.7.6"  // 2022-Apr-01
+#define APP_VERSION "1.7.7"  // 2022-May-8
 
 // -----------------------------------------------------------------------------
 // CONFIGURATION
