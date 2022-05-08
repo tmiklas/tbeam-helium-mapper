@@ -48,7 +48,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // Mapper Uplink from the same location?  This Heartbeat or ping isn't all that important for mapping, but might be
 // useful for time-at-location tracking or other monitoring.  You can safely set this value very high.
 #define STATIONARY_TX_INTERVAL (5 * 60)  // Send one uplink at least once every N seconds
-#define NEVER_REST 0  // Change to 1 if you want to always send at THIS rate, with no slowing or sleeping.
+#define NEVER_REST 0                     // Change to 1 if you want to always send at THIS rate, with no slowing or sleeping.
 
 // After being stationary for a long while, we move to a slower heartbeat interval:
 #define REST_WAIT           (20 * 60)  // If we still haven't moved in this many seconds, start sending even slower..
@@ -70,11 +70,16 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define GPS_LOST_PING (15 * 60)  // Without GPS reception, how often to send a non-mapper status packet
 
 #define SCREEN_IDLE_OFF_S  (2 * 60) // If there are no Uplinks or button presses sent for this long, turn the screen off.
-#define MENU_TIMEOUT_S 5  // Seconds to wait before exiting the menu.
+#define MENU_TIMEOUT_S      5       // Seconds to wait before exiting the menu.
 
-// Below this voltage, power off until USB power allows charging.  The PMIC also has a (safety) turn-off much lower than
-// this. We use a conservative 3.3v here since the battery will last longer.
-#define BATTERY_LOW_VOLTAGE 3.3
+// Below BATTERY_LOW_VOLTAGE, power off until USB power allows charging.
+// The PMIC also has a (safety) turn-off at 2.6v, much lower than this setting. 
+// We use a conservative cutoff here since the battery will last longer if it's not repeatedly run to minimum.
+// A new-condition 18650 cell gives around 9Wh (Molicell) when discharged to the absolute lowest 2.5v
+// 8110mWh to 3.3v
+// 8875mWh to 3.1v
+// 9210mWh to 2.5v
+#define BATTERY_LOW_VOLTAGE 3.1
 
 // Confirmed packets (ACK request) conflict with the function of a Mapper and should not normally be enabled.
 // In areas of reduced coverage, the Mapper will try to send each packet six or more times with different SF/DR.
@@ -83,7 +88,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define LORAWAN_CONFIRMED_EVERY 0  // Request Confirmation message every N Uplinks 
 
 // Spreading Factor (Data Rate) determines how long each 11-byte Mapper Uplink is on-air, and how observable it is.
-// SF10 is about two seconds of transmission per packet, and the highest range, while SF7 is a good compromise
+// SF10 is about two seconds per packet, and the highest range, while SF7 is a good compromise
 // for moving vehicles and reasonable mapping observations.
 #define LORAWAN_SF DR_SF7  // Spreading factor (recommended DR_SF7 for network map purposes)
 
