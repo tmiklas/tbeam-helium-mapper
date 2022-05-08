@@ -1127,37 +1127,19 @@ void menu_gps_passthrough(void) {
   gps_passthrough();
   // Does not return.
 }
+
 void menu_experiment(void) {
-#if 0
-  static boolean power_toggle = true;
+  static int gps_mv = 3300;
 
-  Serial.printf("%f mA  %f mW\n", axp.getBattChargeCurrent() - axp.getBattDischargeCurrent(), axp.getBattInpower());
+  gps_mv += 100;
+  if (gps_mv > 3600)
+    gps_mv = 2700;
 
-  axp.setPowerOutPut(AXP192_LDO3,
-                     power_toggle ? AXP202_ON : AXP202_OFF);  // GPS main power
-  power_toggle = !power_toggle;
-#endif
+  Serial.printf("GPS Voltage: %d\n", gps_mv);
+  snprintf(buffer, sizeof(buffer), "\nGPS %dmv", gps_mv);
+  screen_print(buffer);
 
-  Serial.println("sleep 15");
-
-#if 0
-  screen_end();
-
-  Serial.println("powering off..");
-  
-  //pinMode(I2C_SDA, OUTPUT);
-  //digitalWrite(I2C_SDA, HIGH);
-  axp.setPowerOutPut(AXP192_DCDC1, AXP202_OFF);  // OLED power, 1200mA max
-  pinMode(I2C_SCL, OUTPUT);
-  digitalWrite(I2C_SCL, HIGH);
- 
-  delay(5000);
-  Serial.println("back on");
-  axp.setPowerOutPut(AXP192_DCDC1, AXP202_ON);  // OLED power, 1200mA max
-  screen_setup();
-#endif
-  low_power_sleep(999);
-  Serial.println("done.");
+  axp.setLDO3Voltage(gps_mv);                          // Voltage for GPS Power.  (Neo-6 can take 2.7v to 3.6v) 
 }
 
 void menu_deadzone_here(void) {
